@@ -1,0 +1,40 @@
+# Environment
+.env
+*.env
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+dist/
+build/
+
+# Data (raw data never goes in version control)
+data/raw/*
+data/processed/*
+data/rejected/*
+!data/raw/.gitkeep
+!data/processed/.gitkeep
+!data/rejected/.gitkeep
+
+# Jupyter
+.ipynb_checkpoints/
+
+# Node
+node_modules/
+frontend/dist/
+
+# Airflow
+logs/
+airflow.db
+airflow.cfg
+
+# OS
+.DS_Store
+Thumbs.db
+
+# IDE
+.vscode/
+.idea/
