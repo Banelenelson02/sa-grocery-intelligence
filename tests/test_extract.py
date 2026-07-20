@@ -121,3 +121,66 @@ class TestOpenPriceEngineClient:
             df = client.fetch_prices(product="bread")
 
             assert pd.api.types.is_datetime64_any_dtype(df["recorded_at"])
+
+
+class TestBusinessTechParser:
+
+    def test_loads_csv_into_dataframe(self, tmp_path):
+        from etl.extract.businesstech import BusinessTechParser
+
+        csv_content = "store,product,price_zar,recorded_month,category\nMakro,Bread 700g,19.99,2026-07-01,Staples\n"
+        csv_file = tmp_path / "bt.csv"
+        csv_file.write_text(csv_content)
+
+        parser = BusinessTechParser()
+        df = parser.load(str(csv_file))
+
+        assert len(df) == 1
+        assert df.iloc[0]["store"] == "Makro"
+
+    def test_source_column_is_businesstech(self, tmp_path):
+        from etl.extract.businesstech import BusinessTechParser
+
+        csv_content = "store,product,price_zar,recorded_month,category\nMakro,Bread 700g,19.99,2026-07-01,Staples\n"
+        csv_file = tmp_path / "bt.csv"
+        csv_file.write_text(csv_content)
+
+        parser = BusinessTechParser()
+        df = parser.load(str(csv_file))
+
+        assert (df["source"] == "businesstech").all()
+
+    def test_raises_on_missing_required_column(self, tmp_path):
+        from etl.extract.businesstech import BusinessTechParser
+
+        csv_content = "store,product,recorded_month\nMakro,Bread 700g,2026-07-01\n"
+        csv_file = tmp_path / "bad.csv"
+        csv_file.write_text(csv_content)
+
+        parser = BusinessTechParser()
+        with pytest.raises(Exception):
+            parser.load(str(csv_file))
+
+    def test_price_zar_is_numeric(self, tmp_path):
+        from etl.extract.businesstech import BusinessTechParser
+
+        csv_content = "store,product,price_zar,recorded_month,category\nMakro,Bread 700g,19.99,2026-07-01,Staples\n"
+        csv_file = tmp_path / "bt.csv"
+        csv_file.write_text(csv_content)
+
+        parser = BusinessTechParser()
+        df = parser.load(str(csv_file))
+
+        assert pd.api.types.is_numeric_dtype(df["price_zar"])
+
+    def test_recorded_month_is_datetime(self, tmp_path):
+        from etl.extract.businesstech import BusinessTechParser
+
+        csv_content = "store,product,price_zar,recorded_month,category\nMakro,Bread 700g,19.99,2026-07-01,Staples\n"
+        csv_file = tmp_path / "bt.csv"
+        csv_file.write_text(csv_content)
+
+        parser = BusinessTechParser()
+        df = parser.load(str(csv_file))
+
+        assert pd.api.types.is_datetime64_any_dtype(df["recorded_month"])
