@@ -1,28 +1,5 @@
 # SA Grocery Price Intelligence Platform
 
-> A data engineering pipeline that tracks South African grocery prices over time,
-> surfaces category-level inflation trends, and optimises grocery baskets by cost.
-
-## Live Demo
-🔗 *Coming soon*
-
-## Tech Stack
-Python · PostgreSQL (Supabase) · Apache Airflow · FastAPI · React · Docker
-
-## Quick Start
-```bash
-git clone https://github.com/Banelenelson02/sa-grocery-intelligence.git
-cd sa-grocery-intelligence
-cp .env.example .env
-# Fill in your Supabase connection string and OPE API key
-docker-compose up
-```
-
-## Data Sources
-- Open Price Engine API (Pick n Pay + Woolworths, daily)
-- BusinessTech monthly basket comparison (7 stores, monthly)
-
-## Docs
 > Track SA grocery prices across 10 retailers, surface inflation trends by category, and find the cheapest store combination for your weekly basket.
 
 [![CI](https://img.shields.io/github/actions/workflow/status/Banelenelson02/sa-grocery-intelligence/test.yml?label=tests&style=flat-square)](https://github.com/Banelenelson02/sa-grocery-intelligence/actions)
