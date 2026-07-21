@@ -23,7 +23,6 @@ docker-compose up
 - BusinessTech monthly basket comparison (7 stores, monthly)
 
 ## Docs
-=======
 > Track SA grocery prices across 10 retailers, surface inflation trends by category, and find the cheapest store combination for your weekly basket.
 
 [![CI](https://img.shields.io/github/actions/workflow/status/Banelenelson02/sa-grocery-intelligence/test.yml?label=tests&style=flat-square)](https://github.com/Banelenelson02/sa-grocery-intelligence/actions)
@@ -458,7 +457,6 @@ Built by **Banele Ntuli** — software development student at WeThinkCode_, Pret
 
 ## Docs
 
->>>>>>> 939c3b54e3685b70ede33f881702b97158919335
 - [Architecture](docs/architecture.md)
 - [Data Dictionary](docs/data_dictionary.md)
 - [API Reference](docs/api_reference.md)
