@@ -1,6 +1,5 @@
 # SA Grocery Price Intelligence Platform
 
-<<<<<<< HEAD
 > A data engineering pipeline that tracks South African grocery prices over time,
 > surfaces category-level inflation trends, and optimises grocery baskets by cost.
 
