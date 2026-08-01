@@ -53,3 +53,63 @@ class TestNormalizeDataframe:
         })
         with pytest.raises(ValueError):
             normalize_dataframe(df)
+    
+class TestValidatePrices:
+
+    def test_rejects_null_price(self, messy_prices_df):
+        from etl.transform.clean import validate_prices
+        report = validate_prices(messy_prices_df)
+        assert any("null" in r["reason"].lower()
+                   for r in report.rejected)
+
+    def test_rejects_zero_price(self, messy_prices_df):
+        from etl.transform.clean import validate_prices
+        report = validate_prices(messy_prices_df)
+        assert any(r["row"].get("price_zar") == 0.0
+                   for r in report.rejected)
+
+    def test_rejects_price_above_ceiling(self, messy_prices_df):
+        from etl.transform.clean import validate_prices
+        report = validate_prices(messy_prices_df)
+        rejected_prices = [r["row"].get("price_zar")
+                          for r in report.rejected]
+        assert 99999.99 in rejected_prices
+
+    def test_rejects_future_date(self, messy_prices_df):
+        from etl.transform.clean import validate_prices
+        report = validate_prices(messy_prices_df)
+        assert any("future" in r["reason"].lower() or
+                   "date" in r["reason"].lower()
+                   for r in report.rejected)
+
+    def test_rejects_unknown_store(self, messy_prices_df):
+        from etl.transform.clean import validate_prices
+        report = validate_prices(messy_prices_df)
+        assert any("RandomShop" in str(r["row"])
+                   for r in report.rejected)
+
+    def test_removes_duplicates(self, messy_prices_df):
+        from etl.transform.clean import validate_prices
+        report = validate_prices(messy_prices_df)
+        valid = report.valid
+        if len(valid) > 0:
+            dedup = valid[["store_name", "product_name",
+                           "recorded_at"]].duplicated()
+            assert not dedup.any()
+
+    def test_valid_rows_are_preserved(self, messy_prices_df):
+        from etl.transform.clean import validate_prices
+        report = validate_prices(messy_prices_df)
+        assert len(report.valid) > 0
+
+    def test_rejected_rows_have_reasons(self, messy_prices_df):
+        from etl.transform.clean import validate_prices
+        report = validate_prices(messy_prices_df)
+        for r in report.rejected:
+            assert "reason" in r
+            assert len(r["reason"]) > 0
+
+    def test_counts_add_up(self, messy_prices_df):
+        from etl.transform.clean import validate_prices
+        report = validate_prices(messy_prices_df)
+        assert len(report.valid) + len(report.rejected) == len(messy_prices_df)
