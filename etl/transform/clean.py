@@ -1,13 +1,7 @@
 from dataclasses import dataclass
 import pandas as pd
 from datetime import datetime
-
-CANONICAL_STORES = [
-    "Shoprite", "Checkers", "Pick n Pay", "Woolworths",
-    "SPAR", "Boxer", "Food Lover's Market",
-    "Cambridge Food", "Makro", "Usave"
-]
-
+from etl.transform.clean import CANONICAL_STORES
 
 @dataclass
 class ValidationReport:
