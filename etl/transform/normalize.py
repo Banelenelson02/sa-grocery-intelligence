@@ -1,4 +1,5 @@
 import pandas as pd
+from etl.transform.clean import CANONICAL_STORES
 
 STORE_NAME_MAP = {
     "pick n pay": "Pick n Pay",
