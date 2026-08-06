@@ -1,5 +1,5 @@
-from pydantic import BaseModel, field_validator
-from datetime import date, datetime
+from pydantic import BaseModel, validator
+from datetime import datetime
 from typing import Optional, List
 
 
@@ -28,7 +28,7 @@ class BasketItem(BaseModel):
     product_id: int
     qty: int = 1
 
-    @field_validator("qty")
+    @validator("qty")
     @classmethod
     def qty_must_be_positive(cls, v):
         if v < 1:
@@ -40,14 +40,14 @@ class BasketRequest(BaseModel):
     items: List[BasketItem]
     budget: float
 
-    @field_validator("items")
+    @validator("items")
     @classmethod
     def items_must_not_be_empty(cls, v):
         if not v:
             raise ValueError("items list cannot be empty")
         return v
 
-    @field_validator("budget")
+    @validator("budget")
     @classmethod
     def budget_must_be_positive(cls, v):
         if v <= 0:
