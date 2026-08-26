@@ -1,0 +1,38 @@
+services:
+  db:
+    image: postgres:16
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: sa_grocery
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    ports:
+      - "5432:5432"
+    volumes:
+      - db_data:/var/lib/postgresql/data
+      # Runs schema.sql automatically the FIRST time the container starts
+      # (Postgres only executes /docker-entrypoint-initdb.d on an empty
+      # data directory -- it will NOT re-run this on every restart).
+      - ./db/schema.sql:/docker-entrypoint-initdb.d/1-schema.sql
+      - ./db/seed/stores.sql:/docker-entrypoint-initdb.d/2-stores.sql
+      - ./db/seed/products.sql:/docker-entrypoint-initdb.d/3-products.sql
+      - ./db/seed/sample_prices.sql:/docker-entrypoint-initdb.d/4-sample-prices.sql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  api:
+    build: .
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgresql://postgres:postgres@db:5432/sa_grocery
+    ports:
+      - "8000:8000"
+
+volumes:
+  db_data:
