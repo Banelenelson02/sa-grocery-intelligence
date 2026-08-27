@@ -1,16 +1,14 @@
 # SA Grocery Price Intelligence Platform
 
-> Track SA grocery prices across 10 retailers, surface inflation trends by category, and find the cheapest store combination for your weekly basket.
+> Track SA grocery prices across supported retailers, surface inflation trends by category, and find the cheapest store combination for your weekly basket.
 
-[![CI](https://img.shields.io/github/actions/workflow/status/Banelenelson02/sa-grocery-intelligence/test.yml?label=tests&style=flat-square)](https://github.com/Banelenelson02/sa-grocery-intelligence/actions)
-[![Coverage](https://img.shields.io/badge/coverage-pytest-green?style=flat-square)](#running-tests)
-[![Python](https://img.shields.io/badge/Python-3.11-blue?style=flat-square)](https://python.org)
-[![FastAPI](https://img.shields.io/badge/FastAPI-0.111-green?style=flat-square)](https://fastapi.tiangolo.com)
+[![Python](https://img.shields.io/badge/Python-3.12-blue?style=flat-square)](https://python.org)
+[![FastAPI](https://img.shields.io/badge/FastAPI-0.125-green?style=flat-square)](https://fastapi.tiangolo.com)
 [![PostgreSQL](https://img.shields.io/badge/PostgreSQL-Supabase-blue?style=flat-square)](https://supabase.com)
-[![React](https://img.shields.io/badge/React-18-61DAFB?style=flat-square)](https://react.dev)
 [![Airflow](https://img.shields.io/badge/Airflow-2.9-red?style=flat-square)](https://airflow.apache.org)
 [![Docker](https://img.shields.io/badge/Docker-Compose-2496ED?style=flat-square)](https://docker.com)
-[![Code style: black](https://img.shields.io/badge/code%20style-black-000000?style=flat-square)](https://github.com/psf/black)
+
+> **CI badge removed for now** — GitHub Actions isn't set up yet (see Roadmap). Will be re-added once `.github/workflows/test.yml` exists.
 
 ---
 
@@ -26,45 +24,20 @@ This project builds the data infrastructure to answer those questions.
 
 | | Link |
 |---|---|
-| 🌐 Dashboard | *Deploying September 2026* |
-| 📡 API (Swagger UI) | *Deploying September 2026* |
-
-**Dashboard wireframe — basket optimizer view:**
-
-```
-┌─────────────────────────────────────────────────────────────┐
-│  🛒 Basket Optimizer                                         │
-│  ─────────────────────────────────────────────────────────  │
-│  + Bread 700g  x2      + Full Cream Milk 2L  x1             │
-│  + Maize Meal 5kg  x1  + Eggs 6-pack  x2                    │
-│                                                              │
-│  Budget: R 500                    [ Find cheapest stores ]  │
-│  ─────────────────────────────────────────────────────────  │
-│  ✅ Single store:  Makro          Total: R 287.50            │
-│  💡 Split stores:  Shoprite (staples) + Food Lover's (eggs)  │
-│                                   Total: R 261.20  Save R26  │
-└─────────────────────────────────────────────────────────────┘
-
-┌─────────────────────────────────────────────────────────────┐
-│  📈 Price Trend — Albany White Bread 700g                    │
-│                                                              │
-│  R36 ┤                                          ╭── Woolies  │
-│  R32 ┤              ╭────────────────────╮     │            │
-│  R28 ┤─────────────╯  Pick n Pay         ╰─────╯            │
-│  R24 ┤══════════════════════════════ Shoprite ══════        │
-│      └────────────────────────────────────────────          │
-│        Jul      Aug      Sep      Oct      Nov               │
-└─────────────────────────────────────────────────────────────┘
-```
+| 🌐 Dashboard | Not deployed yet — frontend hasn't been built (see Roadmap) |
+| 📡 API (Swagger UI) | Not deployed yet — runs locally via `docker compose up`, see Quick Start |
 
 ---
 
-## What It Does
+## What It Does — Current Status
 
-- **Price trend tracking** — weekly price history per product across all stores, with week-over-week change calculated via SQL `LAG()` window functions
-- **Store comparison** — ranks stores by average price for a given product category, cheapest first
-- **Inflation analysis** — month-over-month price change per category per store, visualised as a colour-coded heatmap
-- **Basket optimizer** — given a shopping list, returns the cheapest single-store option and the cheapest split across two stores, with the saving in Rand
+| Feature | Status |
+|---|---|
+| Price trend tracking (`/trends`) — week-over-week change via SQL `LAG()` | ✅ Working |
+| Store comparison (`/compare`) — cheapest store first, by category | ✅ Working |
+| Inflation analysis (`/inflation`) — month-over-month % change per category | ✅ Working |
+| Basket optimizer (`/basket`) — single store vs. cheapest split | ✅ Working |
+| Dashboard UI | ⬜ Not started |
 
 ---
 
@@ -74,8 +47,8 @@ This project builds the data infrastructure to answer those questions.
 ┌─────────────────────────────────────────────────────────┐
 │                     DATA SOURCES                         │
 │   Open Price Engine API        BusinessTech CSV          │
-│   (Pick n Pay + Woolworths)    (10 stores, monthly)     │
-│            daily                                         │
+│   (Pick n Pay + Woolworths)    (up to 10 canonical       │
+│            daily                stores, monthly)         │
 └──────────────────┬──────────────────┬───────────────────┘
                    │                  │
                    ▼                  ▼
@@ -83,9 +56,9 @@ This project builds the data infrastructure to answer those questions.
 │            ETL PIPELINE  (Apache Airflow)                │
 │       Extract → Normalize → Validate → Load              │
 │                                                          │
-│  • Retries: 2 attempts, 5-min delay on failure           │
-│  • Rejected rows logged to data/rejected/ with reason    │
-│  • Rate limit handling: exponential backoff on 429       │
+│  • Retries: 2 attempts, 60s backoff on HTTP 429           │
+│  • Rejected rows counted in run summary + printed to     │
+│    console (not yet persisted to a log file)             │
 └──────────────────────────┬──────────────────────────────┘
                            │
                            ▼
@@ -93,29 +66,31 @@ This project builds the data infrastructure to answer those questions.
 │              PostgreSQL on Supabase                      │
 │   stores | products | prices | baskets | basket_items    │
 │                                                          │
+│  • prices.product_id is a FK; prices.store_name is       │
+│    plain text (see Database Schema below for why)        │
 │  • prices table is append-only (never UPDATE, only INSERT)│
-│  • recorded_at column indexed for fast range queries     │
 └──────────────────────────┬──────────────────────────────┘
                            │
                            ▼
 ┌─────────────────────────────────────────────────────────┐
 │              FastAPI  (Analytics API)                    │
-│    /trends   /compare   /inflation   /basket             │
+│    /trends   /compare   /inflation   /basket              │
 │                                                          │
 │  • Pydantic validation on every request + response       │
-│  • 422 on bad params, empty list on unknown IDs          │
+│  • 422 on bad params, empty/zero result on unknown IDs   │
 └──────────────────────────┬──────────────────────────────┘
                            │
                            ▼
 ┌─────────────────────────────────────────────────────────┐
-│        React + Tailwind CSS  (Dashboard)                 │
-│  Price trends | Store rankings | Basket optimizer        │
+│        React + Tailwind CSS  (Dashboard) — NOT BUILT     │
 └─────────────────────────────────────────────────────────┘
 ```
 
 ---
 
 ## Database Schema (ERD)
+
+This is the schema actually running on Supabase today — not an aspirational design.
 
 ```mermaid
 erDiagram
@@ -129,16 +104,16 @@ erDiagram
     products {
         int id PK
         varchar name
-        varchar category
-        varchar subcategory
         varchar unit
         varchar barcode
+        varchar category
+        varchar subcategory
     }
 
     prices {
         int id PK
         int product_id FK
-        int store_id FK
+        varchar store_name
         numeric price_zar
         boolean on_promotion
         timestamptz recorded_at
@@ -157,13 +132,14 @@ erDiagram
         int quantity
     }
 
-    stores ||--o{ prices : "store_id"
     products ||--o{ prices : "product_id"
     products ||--o{ basket_items : "product_id"
     baskets ||--o{ basket_items : "basket_id"
 ```
 
-> **Key design decision:** The `prices` table is append-only history. When a price changes, a new row is inserted with the new date — the existing row is never modified. This is what makes trend analysis and inflation tracking possible.
+> **Key design decision:** `prices.product_id` is a real foreign key, but `prices.store_name` is plain text rather than a `store_id` FK. There are only 10 canonical stores (low cardinality, rarely reused elsewhere), while products benefit more from normalization since `/compare` and `/inflation` group by `category`, which lives on `products`. The `stores` table exists as a separate metadata lookup (chain, region) but `prices` does not join to it.
+>
+> The `prices` table is append-only history: a price change is a new row with a new `recorded_at`, never an `UPDATE`. This is what makes trend and inflation analysis possible via SQL `LAG()` window functions.
 
 ---
 
@@ -171,25 +147,26 @@ erDiagram
 
 | Layer | Technology | Purpose |
 |---|---|---|
-| Language | Python 3.11 | ETL pipeline + API |
+| Language | Python 3.12 | ETL pipeline + API |
 | Data processing | Pandas | Cleaning, normalizing, reshaping |
 | Pipeline scheduling | Apache Airflow | Automated daily + monthly runs |
 | Database | PostgreSQL (Supabase) | Price history storage |
 | ORM | SQLAlchemy | Python ↔ PostgreSQL |
 | API | FastAPI + Pydantic | Analytics endpoints + validation |
-| Frontend | React 18 + Tailwind + Recharts | Dashboard |
-| Containerization | Docker + Docker Compose | One-command local setup |
-| CI/CD | GitHub Actions | Automated testing on every push |
-| Code quality | black + flake8 | Formatting + linting |
+| Frontend | React + Tailwind (planned) | Dashboard — not built yet |
+| Containerization | Docker + Docker Compose | One-command local setup (API + DB) |
+| CI/CD | GitHub Actions (planned) | Not set up yet |
 
 ---
 
 ## Data Sources
 
-| Source | Stores covered | Frequency | Access |
+| Source | Stores supported | Currently seeded | Frequency |
 |---|---|---|---|
-| [Open Price Engine API](https://openpricengine.com) | Pick n Pay, Woolworths | Daily | Free API key (renewable monthly) |
-| BusinessTech basket comparison | Shoprite, Checkers, PnP, SPAR, Woolworths, Food Lover's, Makro | Monthly | Public — manually maintained CSV |
+| Open Price Engine API | Pick n Pay, Woolworths | ✅ | Daily |
+| BusinessTech basket comparison | Up to 10 canonical stores (Shoprite, Checkers, Pick n Pay, Woolworths, SPAR, Boxer, Food Lover's Market, Cambridge Food, Makro, Usave) | 4 seeded: Pick n Pay, Woolworths, Checkers, Shoprite | Monthly |
+
+The validation layer (`etl/transform/clean.py`) only accepts rows from this canonical store list — anything else is rejected, not silently renamed.
 
 ---
 
@@ -197,51 +174,46 @@ erDiagram
 
 ### 1. Prerequisites
 
-- Docker + Docker Compose installed
-- A free [Supabase](https://supabase.com) account (takes 60 seconds)
-- A free [Open Price Engine](https://openpricengine.com) API key
+- Docker + Docker Compose v2 (`docker compose`, not the older standalone `docker-compose`)
+- A free [Supabase](https://supabase.com) account, if you want to run against a hosted DB instead of the local one Docker Compose spins up
 
-### 2. Get your API keys
-
-**Supabase (database):**
-1. Go to [supabase.com](https://supabase.com) → New Project
-2. Settings → Database → Connection string → URI
-3. Copy the full connection string — it looks like: `postgresql://postgres:[password]@db.[ref].supabase.co:5432/postgres`
-
-**Open Price Engine (grocery price data):**
-1. Go to [openpricengine.com](https://openpricengine.com) → Sign up
-2. Navigate to API Keys → Generate key
-3. Note: free keys expire after 30 days — renew via the dashboard
-
-### 3. Clone and configure
+### 2. Clone and configure
 
 ```bash
 git clone https://github.com/Banelenelson02/sa-grocery-intelligence.git
 cd sa-grocery-intelligence
 
 cp .env.example .env
-# Open .env and fill in:
-# DATABASE_URL=postgresql://...   (from Supabase)
-# OPE_API_KEY=...                 (from Open Price Engine)
+# Fill in OPE_API_KEY if you want to run the real Open Price Engine extractor.
+# DATABASE_URL is not required for docker compose up -- it's set automatically
+# for the api container to point at the db container.
 ```
 
-### 4. Run the stack
+### 3. Run the full stack
 
 ```bash
-# Start PostgreSQL + Airflow + FastAPI
-docker-compose up
+docker compose up
+```
 
-# First-time database setup
-docker-compose run pipeline python scripts/seed_db.sh
+This starts Postgres, automatically runs `db/schema.sql` and all three seed files on first boot, then starts the API once the database reports healthy.
 
-# Run the pipeline manually (first data load)
-docker-compose run pipeline python etl/pipeline.py
+```bash
+# Confirm it's up
+curl http://localhost:8000/health
 
-# Open the dashboard
-open http://localhost:5173
-
-# Open the API docs (Swagger UI)
+# Interactive API docs
 open http://localhost:8000/docs
+```
+
+There is no frontend to open yet — see Roadmap.
+
+### 4. Run the ETL pipeline manually (optional)
+
+```bash
+python3 -m venv .venv
+source .venv/bin/activate
+pip install -r requirements.txt
+python3 -c "from etl.pipeline import run_pipeline; run_pipeline()"
 ```
 
 ---
@@ -250,11 +222,11 @@ open http://localhost:8000/docs
 
 | Method | Endpoint | Description |
 |---|---|---|
-| `GET` | `/health` | Health check — confirms API + DB reachable |
+| `GET` | `/health` | Health check |
 | `GET` | `/trends?product_id=5&weeks=12` | Price over time with week-over-week % change |
 | `GET` | `/compare?category=Staples` | Stores ranked cheapest first for a category |
-| `GET` | `/inflation?store_id=2&months=6` | Month-over-month price change per category |
-| `POST` | `/basket` | Basket optimizer — single store vs split recommendation |
+| `GET` | `/inflation?months=6` | Month-over-month price change per category |
+| `POST` | `/basket` | Basket optimizer — single store vs. split recommendation |
 
 **Example — basket request:**
 ```json
@@ -262,61 +234,32 @@ POST /basket
 {
   "items": [
     { "product_id": 1, "qty": 2 },
-    { "product_id": 5, "qty": 1 }
+    { "product_id": 3, "qty": 1 }
   ],
-  "budget": 500
+  "budget": 100
 }
 ```
 
-**Example — basket response:**
+**Example — basket response (actual shape, matches `api/schemas.py`):**
 ```json
 {
-  "single_store": { "store": "Makro", "total_zar": 287.50 },
-  "split_stores": {
-    "total_zar": 261.20,
-    "stores": [
-      { "store": "Shoprite", "subtotal": 142.00 },
-      { "store": "Food Lovers", "subtotal": 119.20 }
+  "single_store": {
+    "store_name": "Woolworths",
+    "total_zar": 71.34,
+    "items": [
+      { "product_id": 1, "qty": 2 },
+      { "product_id": 3, "qty": 1 }
     ]
   },
-  "saving_zar": 26.30
+  "split_stores": {
+    "total_zar": 71.34,
+    "items": [
+      { "product_id": 1, "store_name": "Woolworths", "price_zar": 18.69, "qty": 2 },
+      { "product_id": 3, "store_name": "Woolworths", "price_zar": 33.96, "qty": 1 }
+    ]
+  },
+  "saving_zar": 0.0
 }
-```
-
-Full API reference: [`docs/api_reference.md`](docs/api_reference.md)
-
----
-
-## CI/CD & Code Quality
-
-Every push to `main` or `develop` triggers the GitHub Actions pipeline:
-
-```yaml
-# .github/workflows/test.yml
-on: [push, pull_request]
-jobs:
-  test:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
-        with: { python-version: '3.11' }
-      - run: pip install -r requirements.txt -r requirements-dev.txt
-      - run: black --check .          # formatting
-      - run: flake8 etl/ api/ tests/  # linting
-      - run: pytest tests/ -v --tb=short  # full test suite
-```
-
-**Local code quality checks:**
-```bash
-# Format code
-black .
-
-# Lint
-flake8 etl/ api/ tests/
-
-# Run tests with coverage
-pytest tests/ -v --cov=etl --cov=api --cov-report=term-missing
 ```
 
 ---
@@ -324,49 +267,49 @@ pytest tests/ -v --cov=etl --cov=api --cov-report=term-missing
 ## Data Governance & Edge Cases
 
 ### API Rate Limiting
-The Open Price Engine free tier is rate-limited. The extractor handles this with exponential backoff:
-- On HTTP 429: wait 60 seconds, retry up to 2 times
-- On HTTP 401: raise immediately with a clear message (expired key — renew at openpricengine.com)
-- On timeout: raise after 10 seconds, Airflow retries the full task after 5 minutes
+The Open Price Engine client (`etl/extract/open_price_engine.py`) handles this with retries:
+- On HTTP 429: wait 60 seconds, retry up to 2 times, then raise `OPERateLimitError`
+- On HTTP 401: raise `OPEAuthError` immediately (expired/invalid key)
+- On timeout: raise `OPERequestError` after 10 seconds
 
 ### Missing or Malformed Data
-The BusinessTech CSV is manually maintained and occasionally has missing cells or formatting inconsistencies. The validation layer applies six rules before any row touches the database:
+The validation layer (`etl/transform/clean.py`) applies five rules before any row reaches the database:
 
 | Rule | Condition | Action |
 |---|---|---|
-| Null price | `price_zar` is null | Reject — log reason |
-| Impossible price | `price_zar` ≤ 0 or > R5,000 | Reject — log reason |
-| Future date | `recorded_at` is in the future | Reject — log reason |
-| Unknown store | Store name not in canonical list | Reject — log reason |
-| Duplicate row | Same product + store + date already in batch | Reject — log reason |
+| Null price | `price_zar` is null | Reject — reason recorded |
+| Impossible price | `price_zar` ≤ 0 or > R5,000 | Reject — reason recorded |
+| Future date | `recorded_at` is in the future | Reject — reason recorded |
+| Unknown store | Store name not in the 10-store canonical list | Reject — reason recorded |
+| Duplicate row | Same product + store + date already seen this batch | Reject — reason recorded |
 
-Every rejected row is written to `data/rejected/YYYY-MM-DD.log` with its reason. Nothing is silently dropped.
-
-### Supabase Inactivity Pause
-Supabase free tier pauses projects after 7 days of inactivity. Since the Airflow pipeline queries the database daily, inactivity is never reached during active development. If the pipeline is paused for more than 7 days, the project can be manually unpaused from the Supabase dashboard in under 30 seconds.
+Rejected rows are counted in the pipeline's run summary and printed to console. **Not yet implemented:** persisting them to `data/rejected/YYYY-MM-DD.log` — the directory exists but nothing writes to it today.
 
 ### Duplicate Prevention
-The `PostgresLoader` uses `INSERT ... ON CONFLICT DO NOTHING` — running the pipeline twice on the same data inserts zero duplicate rows.
+`PostgresLoader` checks for an existing row (same product, store, date) via a `SELECT COUNT(*)` query before inserting — running the pipeline twice on the same data does not create duplicate rows. (Not a database-level `ON CONFLICT` clause — the check happens in application code.)
+
+### Supabase Inactivity Pause
+Supabase free tier pauses projects after a period of inactivity. If you see "Coming up..." or a restoring banner on the dashboard, give it a minute or two and refresh — this has happened during development and resolves on its own.
 
 ---
 
 ## Running Tests
 
 ```bash
+pip install -r requirements.txt -r requirements-dev.txt
+
 # Full suite
-pytest tests/ -v
+python3 -m pytest -q
 
 # By layer
-pytest tests/test_extract.py -v    # extractor tests (mocked API)
-pytest tests/test_transform.py -v  # normalization + validation
-pytest tests/test_load.py -v       # upsert logic (mocked DB)
-pytest tests/test_api.py -v        # FastAPI endpoints (TestClient)
-
-# With coverage report
-pytest tests/ -v --cov=etl --cov=api --cov-report=term-missing
+python3 -m pytest tests/test_extract.py -v     # extractor (mocked API)
+python3 -m pytest tests/test_transform.py -v   # normalization + validation
+python3 -m pytest tests/test_load.py -v        # upsert logic (mocked DB)
+python3 -m pytest tests/test_pipeline.py -v    # orchestration
+python3 -m pytest tests/test_api.py -v         # FastAPI endpoints (TestClient, mocked DB)
 ```
 
-All tests run without a live database or API connection — every external dependency is mocked.
+52 tests, all passing. Every test runs without a live database or external API — dependencies are mocked via FastAPI's `dependency_overrides` or `unittest.mock`.
 
 ---
 
@@ -374,32 +317,30 @@ All tests run without a live database or API connection — every external depen
 
 ```
 sa-grocery-intelligence/
-├── .github/workflows/test.yml  # GitHub Actions CI
 ├── etl/
 │   ├── extract/                # OpenPriceEngineClient, BusinessTechParser
-│   ├── transform/              # normalize.py, clean.py, categorize.py
-│   ├── load/                   # PostgresLoader (upsert)
-│   └── pipeline.py             # Orchestrator — E → T → V → L
+│   ├── transform/               # normalize.py, clean.py
+│   │                            # (categorize.py exists but is currently
+│   │                            #  unused -- not wired into pipeline.py)
+│   ├── load/                    # PostgresLoader (application-level upsert)
+│   └── pipeline.py              # Orchestrator -- Extract -> Normalize -> Validate -> Load
 ├── dags/
-│   ├── daily_prices_dag.py     # Runs at 08:00 daily
-│   └── monthly_basket_dag.py   # Runs on 1st of each month
+│   ├── daily_prices_dag.py      # Runs at 08:00 daily
+│   └── monthly_basket_dag.py    # Runs on 1st of each month
 ├── db/
-│   ├── schema.sql              # Full schema reference
-│   ├── migrations/             # Versioned schema changes
-│   └── seed/                   # Stores + products seed data
+│   ├── schema.sql                # Full schema -- run this for a fresh DB
+│   ├── migrations/               # 0001, 0002, 0003 -- incremental version of schema.sql
+│   └── seed/                     # stores, products, sample_prices
 ├── api/
-│   ├── routers/                # trends.py, compare.py, inflation.py, basket.py
-│   ├── schemas.py              # Pydantic models
-│   └── main.py                 # FastAPI app + CORS
-├── frontend/src/
-│   └── components/             # PriceTrendChart, StoreComparisonTable,
-│                               # InflationHeatmap, BasketOptimizer
-├── tests/                      # pytest — all layers mocked
-├── docs/
-│   ├── architecture.md
-│   ├── data_dictionary.md
-│   └── api_reference.md
-├── docker-compose.yml
+│   ├── routers/                  # trends.py, compare.py, inflation.py, basket.py -- all live
+│   ├── schemas.py                # Pydantic models
+│   └── main.py                   # FastAPI app + CORS
+├── frontend/                     # scaffolded but empty -- not started
+├── tests/                        # 52 tests, all mocked, all passing
+├── docs/                         # architecture.md etc. are placeholder/empty in-repo --
+│                                  # real docs currently live on the GitHub Wiki instead
+├── docker-compose.yml            # db + api services
+├── Dockerfile
 ├── .env.example
 └── requirements.txt
 ```
@@ -409,17 +350,20 @@ sa-grocery-intelligence/
 ## Roadmap
 
 - [x] Project structure and schema design
-- [x] Architecture and UML documentation
-- [ ] Open Price Engine extractor
-- [ ] BusinessTech CSV parser
-- [ ] Normalize + validate pipeline
-- [ ] PostgreSQL loader with upsert
-- [ ] Airflow DAGs (daily + monthly)
-- [ ] FastAPI endpoints
+- [x] Architecture and UML documentation (GitHub Wiki)
+- [x] Open Price Engine extractor
+- [x] BusinessTech CSV parser
+- [x] Normalize + validate pipeline
+- [x] PostgreSQL loader with upsert
+- [x] Airflow DAGs (daily + monthly)
+- [x] FastAPI endpoints (`/trends`, `/compare`, `/inflation`, `/basket`)
+- [x] Docker Compose for API + DB
+- [x] API test suite (`test_api.py`)
 - [ ] React dashboard
 - [ ] GitHub Actions CI
 - [ ] Deploy API to Render
 - [ ] Deploy frontend to Vercel
+- [ ] Persist rejected rows to `data/rejected/` log files
 - [ ] **Phase 2:** Expand to non-grocery retailers (Takealot, Makro, iStore)
 
 ---
@@ -434,6 +378,4 @@ Built by **Banele Ntuli** — software development student at WeThinkCode_, Pret
 
 ## Docs
 
-- [Architecture](docs/architecture.md)
-- [Data Dictionary](docs/data_dictionary.md)
-- [API Reference](docs/api_reference.md)
+Architecture diagrams, data model notes, and known issues are documented on the [GitHub Wiki](../../wiki) — `docs/*.md` files in this repo are currently placeholders.
