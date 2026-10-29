@@ -150,8 +150,8 @@ class TestBusinessTechParser:
 
         assert len(df) == 1
         assert df.iloc[0]["store_name"] == "Makro"
-        def test_returns_standard_pipeline_columns(self, tmp_path):
-            from etl.extract.businesstech import BusinessTechParser
+    def test_returns_standard_pipeline_columns(self, tmp_path):
+        from etl.extract.businesstech import BusinessTechParser
 
         csv_content = (
             "store,product,price_zar,recorded_month,category\n"
