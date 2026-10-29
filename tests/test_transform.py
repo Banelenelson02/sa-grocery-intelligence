@@ -64,6 +64,26 @@ class TestNormalizeDataframe:
         assert len(report.rejected) == 1
         assert report.rejected[0]["reason"] == "unknown store"
     
+
+    def test_invalid_date_is_rejected_without_losing_valid_rows(self):
+        from etl.transform.clean import validate_prices
+
+        df = pd.DataFrame({
+            "store_name": ["makro", "shoprite"],
+            "product_name": ["Bread", "Milk"],
+            "price_zar": [20.0, 15.0],
+            "recorded_at": ["not-a-date", "2026-07-01"],
+            "source": ["test", "test"]
+        })
+
+        normalized = normalize_dataframe(df)
+        report = validate_prices(normalized)
+
+        assert len(report.valid) == 1
+        assert report.valid.iloc[0]["product_name"] == "Milk"
+        assert len(report.rejected) == 1
+        assert report.rejected[0]["reason"] == "invalid or missing recorded date"
+
 class TestValidatePrices:
 
     def test_rejects_null_price(self, messy_prices_df):
