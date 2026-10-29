@@ -88,3 +88,41 @@ class TestPostgresLoader:
 
             assert result["duplicates_skipped"] == len(clean_prices_df)
             assert result["inserted"] == 0
+
+    def test_failed_row_does_not_stop_later_rows(self, clean_prices_df):
+        from etl.load.postgres_loader import PostgresLoader
+
+        with patch("etl.load.postgres_loader.create_engine") as mock_engine:
+            mock_conn = MagicMock()
+            mock_conn.__enter__ = MagicMock(return_value=mock_conn)
+            mock_conn.__exit__ = MagicMock(return_value=False)
+            mock_conn.begin_nested.return_value.__enter__ = MagicMock(return_value=None)
+            mock_conn.begin_nested.return_value.__exit__ = MagicMock(return_value=False)
+
+            price_insert_attempts = {"count": 0}
+
+            def execute_side_effect(statement, params=None):
+                sql = str(statement)
+                result = MagicMock()
+
+                if "SELECT id FROM products" in sql:
+                    result.scalar.return_value = 1
+                elif "SELECT COUNT(*) FROM prices" in sql:
+                    result.scalar.return_value = 0
+                elif "INSERT INTO prices" in sql:
+                    price_insert_attempts["count"] += 1
+                    if price_insert_attempts["count"] == 1:
+                        raise RuntimeError("simulated row insert failure")
+                return result
+
+            mock_conn.execute.side_effect = execute_side_effect
+            mock_engine.return_value.connect.return_value = mock_conn
+
+            loader = PostgresLoader(connection_string="postgresql://test")
+            result = loader.load(clean_prices_df)
+
+            assert result["failed"] == 1
+            assert result["inserted"] == 1
+            assert result["duplicates_skipped"] == 0
+            assert price_insert_attempts["count"] == 2
+            assert mock_conn.begin_nested.call_count == 2

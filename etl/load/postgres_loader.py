@@ -25,40 +25,41 @@ class PostgresLoader:
         with self.engine.connect() as conn:
             for _, row in df.iterrows():
                 try:
-                    # prices.product_id is a foreign key -- it needs a real row
-                    # in products to point at. The ETL pipeline only ever sees
-                    # product *names* (from the source APIs/CSVs), never IDs,
-                    # so this resolves name -> id, creating the product row
-                    # the first time a given name is seen.
-                    product_id = self._get_or_create_product_id(conn, row["product_name"])
+                    # Each row uses a savepoint. If one insert fails, rolling
+                    # back that savepoint keeps PostgreSQL's outer transaction
+                    # usable so later valid rows can still be loaded.
+                    with conn.begin_nested():
+                        product_id = self._get_or_create_product_id(
+                            conn, row["product_name"]
+                        )
 
-                    result = conn.execute(text("""
-                        SELECT COUNT(*) FROM prices
-                        WHERE store_name = :store
-                        AND product_id = :product_id
-                        AND DATE(recorded_at) = DATE(:recorded_at)
-                    """), {
-                        "store": row["store_name"],
-                        "product_id": product_id,
-                        "recorded_at": row["recorded_at"]
-                    })
+                        result = conn.execute(text("""
+                            SELECT COUNT(*) FROM prices
+                            WHERE store_name = :store
+                            AND product_id = :product_id
+                            AND DATE(recorded_at) = DATE(:recorded_at)
+                        """), {
+                            "store": row["store_name"],
+                            "product_id": product_id,
+                            "recorded_at": row["recorded_at"]
+                        })
 
-                    if result.scalar() > 0:
-                        duplicates_skipped += 1
-                        continue
+                        if result.scalar() > 0:
+                            duplicates_skipped += 1
+                            continue
 
-                    conn.execute(text("""
-                        INSERT INTO prices
-                        (product_id, store_name, price_zar, recorded_at, source)
-                        VALUES (:product_id, :store, :price, :recorded_at, :source)
-                    """), {
-                        "product_id": product_id,
-                        "store": row["store_name"],
-                        "price": row["price_zar"],
-                        "recorded_at": row["recorded_at"],
-                        "source": row["source"]
-                    })
-                    inserted += 1
+                        conn.execute(text("""
+                            INSERT INTO prices
+                            (product_id, store_name, price_zar, recorded_at, source)
+                            VALUES (:product_id, :store, :price, :recorded_at, :source)
+                        """), {
+                            "product_id": product_id,
+                            "store": row["store_name"],
+                            "price": row["price_zar"],
+                            "recorded_at": row["recorded_at"],
+                            "source": row["source"]
+                        })
+                        inserted += 1
 
                 except Exception as e:
                     failed += 1
