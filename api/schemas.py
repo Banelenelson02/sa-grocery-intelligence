@@ -59,9 +59,13 @@ class StoreBasket(BaseModel):
     store_name: str
     total_zar: float
     items: List[dict] = []
+    budget_zar: Optional[float] = None
+    within_budget: Optional[bool] = None
 
 
 class BasketResponse(BaseModel):
     single_store: StoreBasket
     split_stores: Optional[dict] = None
     saving_zar: Optional[float] = None
+    budget_zar: Optional[float] = None
+    budget_status: str
