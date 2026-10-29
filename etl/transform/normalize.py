@@ -1,5 +1,4 @@
 import pandas as pd
-from etl.transform.clean import CANONICAL_STORES
 
 STORE_NAME_MAP = {
     "pick n pay": "Pick n Pay",
@@ -28,6 +27,17 @@ def normalize_store_name(raw: str) -> str:
 
 
 def normalize_dataframe(df: pd.DataFrame) -> pd.DataFrame:
-    df["store_name"] = df["store_name"].apply(normalize_store_name)
-    df["recorded_at"] = pd.to_datetime(df["recorded_at"])
-    return df
+    # Work on a copy so callers' raw extracted data remains unchanged.
+    normalized = df.copy()
+
+    # Keep unknown names unchanged. validate_prices() can then reject those
+    # individual rows without aborting normalization of the whole batch.
+    def normalize_or_preserve(raw: str) -> str:
+        try:
+            return normalize_store_name(raw)
+        except (AttributeError, ValueError):
+            return raw
+
+    normalized["store_name"] = normalized["store_name"].apply(normalize_or_preserve)
+    normalized["recorded_at"] = pd.to_datetime(normalized["recorded_at"])
+    return normalized
