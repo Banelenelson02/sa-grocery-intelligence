@@ -44,15 +44,25 @@ class TestNormalizeDataframe:
         result = normalize_dataframe(df)
         assert pd.api.types.is_datetime64_any_dtype(result["recorded_at"])
 
-    def test_raises_on_unknown_store_in_dataframe(self):
+    def test_preserves_unknown_store_for_row_level_validation(self):
+        from etl.transform.clean import validate_prices
+
         df = pd.DataFrame({
-            "store_name": ["UnknownStore"],
-            "product_name": ["Bread"],
-            "price_zar": [20.0],
-            "recorded_at": ["2026-07-01"]
+            "store_name": ["UnknownStore", "makro"],
+            "product_name": ["Bread", "Milk"],
+            "price_zar": [20.0, 15.0],
+            "recorded_at": ["2026-07-01", "2026-07-01"],
+            "source": ["test", "test"]
         })
-        with pytest.raises(ValueError):
-            normalize_dataframe(df)
+
+        result = normalize_dataframe(df)
+        assert result["store_name"].tolist() == ["UnknownStore", "Makro"]
+
+        report = validate_prices(result)
+        assert len(report.valid) == 1
+        assert report.valid.iloc[0]["store_name"] == "Makro"
+        assert len(report.rejected) == 1
+        assert report.rejected[0]["reason"] == "unknown store"
     
 class TestValidatePrices:
 
