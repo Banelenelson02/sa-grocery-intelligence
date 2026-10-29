@@ -81,6 +81,29 @@ export default function BasketOptimizer() {
         {error && <ErrorMessage message={error} />}
         {!loading && !error && result && (
           <div className="grid max-w-xl gap-4 sm:grid-cols-2">
+            <div className="sm:col-span-2 rounded border border-forest-100 bg-white p-4">
+              <p className="text-xs font-medium uppercase tracking-wide text-forest-400">
+                Budget check
+              </p>
+              <p className="mt-1 font-semibold text-forest-900">
+                Budget: R{Number(result.budget_zar ?? budget).toFixed(2)}
+              </p>
+              {result.budget_status === 'within_budget' && result.recommended_option && (
+                <p className="mt-1 text-sm text-forest-700">
+                  Recommended: {result.recommended_option === 'single_store' ? 'shop at one store' : 'split your shopping across stores'}.
+                </p>
+              )}
+              {result.budget_status === 'over_budget' && (
+                <p className="mt-1 text-sm text-red-700">
+                  Neither complete option fits this budget. Increase your budget or reduce quantities.
+                </p>
+              )}
+              {result.budget_status === 'missing_prices' && (
+                <p className="mt-1 text-sm text-forest-700">
+                  There is not enough price data to build a complete basket. Some selected products have no recorded prices.
+                </p>
+              )}
+            </div>
             <div className="rounded border border-forest-100 bg-white p-4">
               <p className="text-xs font-medium uppercase tracking-wide text-forest-400">
                 One store

@@ -135,6 +135,30 @@ class TestBasketEndpoint:
         body = response.json()
         assert body["single_store"]["store_name"] == "Woolworths"
         assert body["single_store"]["total_zar"] == 37.38
+        assert body["budget_zar"] == 100
+        assert body["budget_status"] == "within_budget"
+        assert body["recommended_option"] in {"single_store", "split_stores"}
+        assert body["single_store"]["within_budget"] is True
+        assert body["split_stores"]["within_budget"] is True
+
+    def test_marks_basket_over_budget(self, client_with_mock_db):
+        client, mock_db = client_with_mock_db
+        mock_db.execute.return_value.fetchall.return_value = [
+            make_row(product_id=1, store_name="Woolworths", price_zar=18.69),
+            make_row(product_id=1, store_name="Pick n Pay", price_zar=19.99),
+        ]
+
+        response = client.post("/basket", json={
+            "items": [{"product_id": 1, "qty": 2}],
+            "budget": 30
+        })
+
+        assert response.status_code == 200
+        body = response.json()
+        assert body["budget_status"] == "over_budget"
+        assert body["recommended_option"] is None
+        assert body["single_store"]["within_budget"] is False
+        assert body["split_stores"]["within_budget"] is False
 
     def test_rejects_empty_items(self, client_with_mock_db):
         client, _ = client_with_mock_db
