@@ -1,382 +1,273 @@
 # SA Grocery Price Intelligence Platform
 
-> Track SA grocery prices across supported retailers, surface inflation trends by category, and find the cheapest store combination for your weekly basket.
+A local South African grocery price analytics MVP for exploring historical price trends, comparing stores by category, analysing monthly price changes, and comparing single-store and split-store shopping baskets.
 
-[![Python](https://img.shields.io/badge/Python-3.12-blue?style=flat-square)](https://python.org)
-[![FastAPI](https://img.shields.io/badge/FastAPI-0.125-green?style=flat-square)](https://fastapi.tiangolo.com)
-[![PostgreSQL](https://img.shields.io/badge/PostgreSQL-Supabase-blue?style=flat-square)](https://supabase.com)
-[![Airflow](https://img.shields.io/badge/Airflow-2.9-red?style=flat-square)](https://airflow.apache.org)
-[![Docker](https://img.shields.io/badge/Docker-Compose-2496ED?style=flat-square)](https://docker.com)
+**Current status:** Local MVP; no public deployment yet.
 
-> **CI badge removed for now** — GitHub Actions isn't set up yet (see Roadmap). Will be re-added once `.github/workflows/test.yml` exists.
+## Features
 
----
+- **Price trends:** View recorded prices for a product across stores and percentage changes from the previous recorded price.
+- **Store comparison:** Rank stores by average recorded price for a selected product category.
+- **Inflation analysis:** Compare monthly average recorded prices by category, optionally filtered to a store. These calculations describe this dataset; they are not official South African CPI statistics.
+- **Basket optimizer:** Compare the cheapest one-store basket that covers all requested products with buying each item at its cheapest recorded store. The split option can involve several stores.
 
-## The Problem
+## Sample data and limitations
 
-Comparing grocery prices in South Africa is a snapshot game — you can check who is cheapest today, but nobody shows you who has been *consistently* cheaper over time, how fast specific categories are inflating, or how to split a shopping list across stores to minimise total spend.
+The local sample database was checked on 29 October 2026 and contained:
 
-This project builds the data infrastructure to answer those questions.
+| Measure | Current sample |
+|---|---:|
+| Products | 10 |
+| Stores | 4 |
+| Price records | 480 |
+| Earliest record | 1 May 2026 |
+| Latest record | 17 July 2026 |
 
----
+The four store names are Checkers, Pick n Pay, Shoprite, and Woolworths. These are **historical sample prices, not live supermarket prices**. As the latest date is 17 July 2026, short trends windows can legitimately return no records.
 
-## Live Demo
+The basket API accepts a positive `budget`, but the current optimizer does not use the budget to constrain the recommendation. Its split-basket total also excludes travel costs and the inconvenience of visiting multiple stores.
 
-| | Link |
-|---|---|
-| 🌐 Dashboard | Not deployed yet — frontend hasn't been built (see Roadmap) |
-| 📡 API (Swagger UI) | Not deployed yet — runs locally via `docker compose up`, see Quick Start |
+ETL components exist in the repository, but the current Compose stack does not run an Airflow scheduler or refresh prices automatically.
 
----
+## Architecture
 
-## What It Does — Current Status
-
-| Feature | Status |
-|---|---|
-| Price trend tracking (`/trends`) — week-over-week change via SQL `LAG()` | ✅ Working |
-| Store comparison (`/compare`) — cheapest store first, by category | ✅ Working |
-| Inflation analysis (`/inflation`) — month-over-month % change per category | ✅ Working |
-| Basket optimizer (`/basket`) — single store vs. cheapest split | ✅ Working |
-| Dashboard UI | ⬜ Not started |
-
----
-
-## System Architecture
-
-```
-┌─────────────────────────────────────────────────────────┐
-│                     DATA SOURCES                         │
-│   Open Price Engine API        BusinessTech CSV          │
-│   (Pick n Pay + Woolworths)    (up to 10 canonical       │
-│            daily                stores, monthly)         │
-└──────────────────┬──────────────────┬───────────────────┘
-                   │                  │
-                   ▼                  ▼
-┌─────────────────────────────────────────────────────────┐
-│            ETL PIPELINE  (Apache Airflow)                │
-│       Extract → Normalize → Validate → Load              │
-│                                                          │
-│  • Retries: 2 attempts, 60s backoff on HTTP 429           │
-│  • Rejected rows counted in run summary + printed to     │
-│    console (not yet persisted to a log file)             │
-└──────────────────────────┬──────────────────────────────┘
-                           │
-                           ▼
-┌─────────────────────────────────────────────────────────┐
-│              PostgreSQL on Supabase                      │
-│   stores | products | prices | baskets | basket_items    │
-│                                                          │
-│  • prices.product_id is a FK; prices.store_name is       │
-│    plain text (see Database Schema below for why)        │
-│  • prices table is append-only (never UPDATE, only INSERT)│
-└──────────────────────────┬──────────────────────────────┘
-                           │
-                           ▼
-┌─────────────────────────────────────────────────────────┐
-│              FastAPI  (Analytics API)                    │
-│    /trends   /compare   /inflation   /basket              │
-│                                                          │
-│  • Pydantic validation on every request + response       │
-│  • 422 on bad params, empty/zero result on unknown IDs   │
-└──────────────────────────┬──────────────────────────────┘
-                           │
-                           ▼
-┌─────────────────────────────────────────────────────────┐
-│        React + Tailwind CSS  (Dashboard) — NOT BUILT     │
-└─────────────────────────────────────────────────────────┘
+```text
+PostgreSQL 16 (Docker Compose)
+          |
+          v
+FastAPI analytics API (Docker Compose, port 8000)
+          ^
+          | HTTP requests
+          |
+React + Vite frontend (development server, port 5173)
 ```
 
----
+### Technology stack
 
-## Database Schema (ERD)
-
-This is the schema actually running on Supabase today — not an aspirational design.
-
-```mermaid
-erDiagram
-    stores {
-        int id PK
-        varchar name
-        varchar chain
-        varchar region
-    }
-
-    products {
-        int id PK
-        varchar name
-        varchar unit
-        varchar barcode
-        varchar category
-        varchar subcategory
-    }
-
-    prices {
-        int id PK
-        int product_id FK
-        varchar store_name
-        numeric price_zar
-        boolean on_promotion
-        timestamptz recorded_at
-        varchar source
-    }
-
-    baskets {
-        int id PK
-        varchar name
-        timestamptz created_at
-    }
-
-    basket_items {
-        int basket_id FK
-        int product_id FK
-        int quantity
-    }
-
-    products ||--o{ prices : "product_id"
-    products ||--o{ basket_items : "product_id"
-    baskets ||--o{ basket_items : "basket_id"
-```
-
-> **Key design decision:** `prices.product_id` is a real foreign key, but `prices.store_name` is plain text rather than a `store_id` FK. There are only 10 canonical stores (low cardinality, rarely reused elsewhere), while products benefit more from normalization since `/compare` and `/inflation` group by `category`, which lives on `products`. The `stores` table exists as a separate metadata lookup (chain, region) but `prices` does not join to it.
->
-> The `prices` table is append-only history: a price change is a new row with a new `recorded_at`, never an `UPDATE`. This is what makes trend and inflation analysis possible via SQL `LAG()` window functions.
-
----
-
-## Tech Stack
-
-| Layer | Technology | Purpose |
+| Layer | Technology | Role |
 |---|---|---|
-| Language | Python 3.12 | ETL pipeline + API |
-| Data processing | Pandas | Cleaning, normalizing, reshaping |
-| Pipeline scheduling | Apache Airflow | Automated daily + monthly runs |
-| Database | PostgreSQL (Supabase) | Price history storage |
-| ORM | SQLAlchemy | Python ↔ PostgreSQL |
-| API | FastAPI + Pydantic | Analytics endpoints + validation |
-| Frontend | React + Tailwind (planned) | Dashboard — not built yet |
-| Containerization | Docker + Docker Compose | One-command local setup (API + DB) |
-| CI/CD | GitHub Actions (planned) | Not set up yet |
+| API | Python, FastAPI, Pydantic | HTTP endpoints and request/response validation |
+| Database | PostgreSQL 16 | Products, recorded prices, and basket tables |
+| Database access | SQLAlchemy | Execute SQL queries from the API |
+| Frontend | React 18, Vite | Interactive browser dashboard |
+| Styling | Tailwind CSS | Interface styling |
+| Charts | Recharts | Price trend visualisations |
+| Containers | Docker Compose | Local database and API services |
+| Tests | pytest | Automated backend and ETL tests |
 
----
+## Quick start
 
-## Data Sources
+### Prerequisites
 
-| Source | Stores supported | Currently seeded | Frequency |
-|---|---|---|---|
-| Open Price Engine API | Pick n Pay, Woolworths | ✅ | Daily |
-| BusinessTech basket comparison | Up to 10 canonical stores (Shoprite, Checkers, Pick n Pay, Woolworths, SPAR, Boxer, Food Lover's Market, Cambridge Food, Makro, Usave) | 4 seeded: Pick n Pay, Woolworths, Checkers, Shoprite | Monthly |
+Install Docker Engine with the Docker Compose plugin, Node.js, npm, and Git.
 
-The validation layer (`etl/transform/clean.py`) only accepts rows from this canonical store list — anything else is rejected, not silently renamed.
-
----
-
-## Quick Start
-
-### 1. Prerequisites
-
-- Docker + Docker Compose v2 (`docker compose`, not the older standalone `docker-compose`)
-- A free [Supabase](https://supabase.com) account, if you want to run against a hosted DB instead of the local one Docker Compose spins up
-
-### 2. Clone and configure
+### 1. Get the code
 
 ```bash
 git clone https://github.com/Banelenelson02/sa-grocery-intelligence.git
 cd sa-grocery-intelligence
-
-cp .env.example .env
-# Fill in OPE_API_KEY if you want to run the real Open Price Engine extractor.
-# DATABASE_URL is not required for docker compose up -- it's set automatically
-# for the api container to point at the db container.
 ```
 
-### 3. Run the full stack
+### 2. Start the database and API
 
 ```bash
-docker compose up
+docker compose up -d --build
+docker compose ps
 ```
 
-This starts Postgres, automatically runs `db/schema.sql` and all three seed files on first boot, then starts the API once the database reports healthy.
+Wait for the database service to show `healthy` and the API service to be running. Compose starts PostgreSQL and FastAPI. The database is available to the API on Docker's internal network; PostgreSQL's port is not published on the host.
+
+On the first run with a fresh named volume, PostgreSQL applies `db/schema.sql` and the seed SQL files mounted from `db/`. PostgreSQL initialization scripts are not re-run automatically on an already-initialized volume.
+
+### 3. Check the API
 
 ```bash
-# Confirm it's up
-curl http://localhost:8000/health
-
-# Interactive API docs
-open http://localhost:8000/docs
+curl -i http://localhost:8000/health
 ```
 
-There is no frontend to open yet — see Roadmap.
+Expected response:
 
-### 4. Run the ETL pipeline manually (optional)
+```json
+{"status":"ok"}
+```
+
+This endpoint confirms the API is responding. It does not independently check the database connection.
+
+Interactive API documentation is available at <http://localhost:8000/docs>.
+
+### 4. Start the frontend
+
+Open another terminal in the repository root and run:
 
 ```bash
-python3 -m venv .venv
-source .venv/bin/activate
-pip install -r requirements.txt
-python3 -c "from etl.pipeline import run_pipeline; run_pipeline()"
+cd frontend
+npm ci
+npm run dev
 ```
 
----
+Open <http://localhost:5173> in your browser. The frontend defaults to `http://localhost:8000` for API requests. To change this for local development, set `VITE_API_BASE_URL` in `frontend/.env` (the `frontend/.env.example` file provides the default value).
 
-## API Endpoints
+Keep the Compose services running while using the dashboard.
+
+### 5. Stop services
+
+Stop the Vite development server with `Ctrl+C`. From the repository root, stop the Docker services with:
+
+```bash
+docker compose down
+```
+
+This retains the named database volume. Avoid `docker compose down -v` unless you intentionally want to delete the database volume and its stored data.
+
+## API endpoints
+
+Base URL: `http://localhost:8000`
 
 | Method | Endpoint | Description |
 |---|---|---|
-| `GET` | `/health` | Health check |
-| `GET` | `/trends?product_id=5&weeks=12` | Price over time with week-over-week % change |
-| `GET` | `/compare?category=Staples` | Stores ranked cheapest first for a category |
-| `GET` | `/inflation?months=6` | Month-over-month price change per category |
-| `POST` | `/basket` | Basket optimizer — single store vs. split recommendation |
+| `GET` | `/health` | API health response (`{"status":"ok"}`) |
+| `GET` | `/trends?product_id=1&weeks=52` | Recorded price history for a product |
+| `GET` | `/compare?category=Dairy` | Rank stores by average recorded price for a category |
+| `GET` | `/inflation?months=6` | Monthly category price changes |
+| `GET` | `/inflation?months=6&store_name=Pick%20n%20Pay` | Monthly category price changes filtered to a store |
+| `POST` | `/basket` | Compare one-store and split-basket totals |
 
-**Example — basket request:**
-```json
-POST /basket
-{
-  "items": [
-    { "product_id": 1, "qty": 2 },
-    { "product_id": 3, "qty": 1 }
-  ],
-  "budget": 100
-}
-```
-
-**Example — basket response (actual shape, matches `api/schemas.py`):**
-```json
-{
-  "single_store": {
-    "store_name": "Woolworths",
-    "total_zar": 71.34,
-    "items": [
-      { "product_id": 1, "qty": 2 },
-      { "product_id": 3, "qty": 1 }
-    ]
-  },
-  "split_stores": {
-    "total_zar": 71.34,
-    "items": [
-      { "product_id": 1, "store_name": "Woolworths", "price_zar": 18.69, "qty": 2 },
-      { "product_id": 3, "store_name": "Woolworths", "price_zar": 33.96, "qty": 1 }
-    ]
-  },
-  "saving_zar": 0.0
-}
-```
-
----
-
-## Data Governance & Edge Cases
-
-### API Rate Limiting
-The Open Price Engine client (`etl/extract/open_price_engine.py`) handles this with retries:
-- On HTTP 429: wait 60 seconds, retry up to 2 times, then raise `OPERateLimitError`
-- On HTTP 401: raise `OPEAuthError` immediately (expired/invalid key)
-- On timeout: raise `OPERequestError` after 10 seconds
-
-### Missing or Malformed Data
-The validation layer (`etl/transform/clean.py`) applies five rules before any row reaches the database:
-
-| Rule | Condition | Action |
-|---|---|---|
-| Null price | `price_zar` is null | Reject — reason recorded |
-| Impossible price | `price_zar` ≤ 0 or > R5,000 | Reject — reason recorded |
-| Future date | `recorded_at` is in the future | Reject — reason recorded |
-| Unknown store | Store name not in the 10-store canonical list | Reject — reason recorded |
-| Duplicate row | Same product + store + date already seen this batch | Reject — reason recorded |
-
-Rejected rows are counted in the pipeline's run summary and printed to console. **Not yet implemented:** persisting them to `data/rejected/YYYY-MM-DD.log` — the directory exists but nothing writes to it today.
-
-### Duplicate Prevention
-`PostgresLoader` checks for an existing row (same product, store, date) via a `SELECT COUNT(*)` query before inserting — running the pipeline twice on the same data does not create duplicate rows. (Not a database-level `ON CONFLICT` clause — the check happens in application code.)
-
-### Supabase Inactivity Pause
-Supabase free tier pauses projects after a period of inactivity. If you see "Coming up..." or a restoring banner on the dashboard, give it a minute or two and refresh — this has happened during development and resolves on its own.
-
----
-
-## Running Tests
+### Trends example
 
 ```bash
-pip install -r requirements.txt -r requirements-dev.txt
+curl "http://localhost:8000/trends?product_id=1&weeks=52"
+```
 
-# Full suite
+- `product_id` is required and must be positive.
+- `weeks` defaults to 12 and must be between 1 and 52.
+- Results include `recorded_at`, `store_name`, `price_zar`, and `week_over_week_change`.
+
+### Compare example
+
+```bash
+curl "http://localhost:8000/compare?category=Dairy"
+```
+
+The category must match a category in the database. Results include `store_name`, `avg_price_zar`, `product_count`, and `rank`. The average is calculated from the recorded price rows in the dataset, not from live prices.
+
+### Inflation example
+
+```bash
+curl "http://localhost:8000/inflation?months=6"
+curl "http://localhost:8000/inflation?months=6&store_name=Pick%20n%20Pay"
+```
+
+- `months` defaults to 6 and allows values from 1 to 36.
+- `store_name` is optional.
+- Results contain `month`, `category`, `avg_price_zar`, and `pct_change`.
+
+### Basket example
+
+```bash
+curl -X POST "http://localhost:8000/basket" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "items": [
+      {"product_id": 1, "qty": 2},
+      {"product_id": 5, "qty": 1}
+    ],
+    "budget": 500
+  }'
+```
+
+The request requires a non-empty `items` array, positive product quantities, and a positive `budget`. The response contains:
+
+- `single_store`: `store_name`, `total_zar`, and the requested item quantities.
+- `split_stores`: `total_zar` and an item-level breakdown including `product_id`, `store_name`, `price_zar`, and `qty`.
+- `saving_zar`: the difference between the totals when a single store can cover all basket items.
+
+The optimizer uses the latest recorded price for each product/store pair. For the full request/response schemas, open <http://localhost:8000/docs> while the API is running.
+
+## Run tests and build the frontend
+
+From the repository root, run the Python test suite:
+
+```bash
 python3 -m pytest -q
-
-# By layer
-python3 -m pytest tests/test_extract.py -v     # extractor (mocked API)
-python3 -m pytest tests/test_transform.py -v   # normalization + validation
-python3 -m pytest tests/test_load.py -v        # upsert logic (mocked DB)
-python3 -m pytest tests/test_pipeline.py -v    # orchestration
-python3 -m pytest tests/test_api.py -v         # FastAPI endpoints (TestClient, mocked DB)
 ```
 
-52 tests, all passing. Every test runs without a live database or external API — dependencies are mocked via FastAPI's `dependency_overrides` or `unittest.mock`.
+The current local test run completed with **52 passed in 0.47 seconds**. Runtime will vary by environment. ETL and API tests mock external dependencies where appropriate; no real Open Price Engine request is needed for the normal test run.
 
----
+Build the frontend for production:
 
-## Project Structure
-
+```bash
+cd frontend
+npm ci
+npm run build
 ```
+
+Vite may warn that the main JavaScript chunk exceeds its recommended size threshold. This is a non-blocking performance warning if the build completes successfully.
+
+## Database overview
+
+The schema is defined in `db/schema.sql`:
+
+- `stores`: store metadata.
+- `products`: product names, units, barcodes and categories.
+- `prices`: historical prices, product IDs, store names, timestamps and source names.
+- `baskets`: basket metadata.
+- `basket_items`: basket product quantities.
+
+The `prices` table references products through `product_id` and stores the store name directly in `store_name`. It does not currently use `store_id` as a foreign key on the price rows.
+
+## Repository structure
+
+```text
 sa-grocery-intelligence/
-├── etl/
-│   ├── extract/                # OpenPriceEngineClient, BusinessTechParser
-│   ├── transform/               # normalize.py, clean.py
-│   │                            # (categorize.py exists but is currently
-│   │                            #  unused -- not wired into pipeline.py)
-│   ├── load/                    # PostgresLoader (application-level upsert)
-│   └── pipeline.py              # Orchestrator -- Extract -> Normalize -> Validate -> Load
-├── dags/
-│   ├── daily_prices_dag.py      # Runs at 08:00 daily
-│   └── monthly_basket_dag.py    # Runs on 1st of each month
-├── db/
-│   ├── schema.sql                # Full schema -- run this for a fresh DB
-│   ├── migrations/               # 0001, 0002, 0003 -- incremental version of schema.sql
-│   └── seed/                     # stores, products, sample_prices
 ├── api/
-│   ├── routers/                  # trends.py, compare.py, inflation.py, basket.py -- all live
-│   ├── schemas.py                # Pydantic models
-│   └── main.py                   # FastAPI app + CORS
-├── frontend/                     # scaffolded but empty -- not started
-├── tests/                        # 52 tests, all mocked, all passing
-├── docs/                         # architecture.md etc. are placeholder/empty in-repo --
-│                                  # real docs currently live on the GitHub Wiki instead
-├── docker-compose.yml            # db + api services
+│   ├── routers/       # Trends, compare, inflation and basket endpoints
+│   ├── db.py          # SQLAlchemy connection/session setup
+│   ├── schemas.py     # Pydantic request and response models
+│   └── main.py        # FastAPI application and CORS configuration
+├── db/
+│   ├── schema.sql
+│   └── seed/          # Store, product and sample price inserts
+├── etl/
+│   ├── extract/
+│   ├── transform/
+│   ├── load/
+│   └── pipeline.py
+├── frontend/
+│   └── src/           # React pages, API clients, hooks and components
+├── tests/
+├── docs/
 ├── Dockerfile
-├── .env.example
-└── requirements.txt
+├── docker-compose.yml
+├── requirements.txt
+└── README.md
 ```
-
----
 
 ## Roadmap
 
-- [x] Project structure and schema design
-- [x] Architecture and UML documentation (GitHub Wiki)
-- [x] Open Price Engine extractor
-- [x] BusinessTech CSV parser
-- [x] Normalize + validate pipeline
-- [x] PostgreSQL loader with upsert
-- [x] Airflow DAGs (daily + monthly)
-- [x] FastAPI endpoints (`/trends`, `/compare`, `/inflation`, `/basket`)
-- [x] Docker Compose for API + DB
-- [x] API test suite (`test_api.py`)
-- [ ] React dashboard
-- [ ] GitHub Actions CI
-- [ ] Deploy API to Render
-- [ ] Deploy frontend to Vercel
-- [ ] Persist rejected rows to `data/rejected/` log files
-- [ ] **Phase 2:** Expand to non-grocery retailers (Takealot, Makro, iStore)
+- [x] PostgreSQL schema and seed data
+- [x] FastAPI analytics endpoints
+- [x] React dashboard for trends, comparison, inflation and basket optimization
+- [x] Local Docker Compose setup for PostgreSQL and the API
+- [x] Automated test suite (52 tests passed in the latest local run)
+- [ ] Show the latest sample-data date clearly in the dashboard
+- [ ] Improve empty states for periods with no price records
+- [ ] Apply budget constraints to basket optimization
+- [ ] Add database-backed integration tests
+- [ ] Reduce the frontend JavaScript bundle size through code splitting
+- [ ] Complete detailed API, architecture and data-dictionary documentation
+- [ ] Configure and verify continuous integration
+- [ ] Deploy the dashboard and API publicly
 
----
+## Data interpretation
 
-## Background
+- Category comparisons and inflation calculations describe this dataset and should not be interpreted as official CPI statistics.
+- Results can be incomplete or empty when records do not cover the requested time window.
+- A split basket can cost less at checkout but require visits to multiple supermarkets; travel and time costs are not included.
+- The sample prices are historical, not real-time price quotes.
 
-This project started from a simple observation at university: splitting your grocery shopping across stores saves real money, but nobody had built the data infrastructure to prove it systematically or tell you exactly where to shop.
+## License
 
-Built by **Banele Ntuli** — software development student at WeThinkCode_, Pretoria. Peer Tutor. Co-founder of [Handcrafted Sites](https://github.com/Banelenelson02).
+No license has been specified in this repository. Check licensing before redistributing or reusing this code.
+## WeThinkCode_ Project Reference
 
----
-
-## Docs
-
-Architecture diagrams, data model notes, and known issues are documented on the [GitHub Wiki](../../wiki) — `docs/*.md` files in this repo are currently placeholders.
-WTC-E43X2F5H
+Project reference: `WTC-E43X2F5H`
