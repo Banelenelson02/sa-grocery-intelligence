@@ -1,0 +1,25 @@
+# Git metadata
+.git
+**/.git
+
+# Python virtual environments and caches
+.venv/
+venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Frontend dependencies and build output
+frontend/node_modules/
+frontend/dist/
+
+# Local environment files and backups
+.env
+**/.env
+*.save
+sa_grocery_backup.sql
+
+# Accidental nested clone
+sa-grocery-intelligence/
