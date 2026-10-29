@@ -149,8 +149,34 @@ class TestBusinessTechParser:
         df = parser.load(str(csv_file))
 
         assert len(df) == 1
-        assert df.iloc[0]["store"] == "Makro"
+        assert df.iloc[0]["store_name"] == "Makro"
+        def test_returns_standard_pipeline_columns(self, tmp_path):
+            from etl.extract.businesstech import BusinessTechParser
 
+        csv_content = (
+            "store,product,price_zar,recorded_month,category\n"
+            "Makro,Bread 700g,19.99,2026-07-01,Staples\n"
+        )
+        csv_file = tmp_path / "bt.csv"
+        csv_file.write_text(csv_content)
+
+        df = BusinessTechParser().load(str(csv_file))
+
+        expected_columns = [
+            "store_name",
+            "product_name",
+            "price_zar",
+            "recorded_at",
+            "category",
+            "source",
+        ]
+
+        for column in expected_columns:
+            assert column in df.columns
+
+        assert df.iloc[0]["product_name"] == "Bread 700g"
+        assert df.iloc[0]["category"] == "Staples"
+        assert df.iloc[0]["source"] == "businesstech"
     def test_source_column_is_businesstech(self, tmp_path):
         from etl.extract.businesstech import BusinessTechParser
 
@@ -196,4 +222,4 @@ class TestBusinessTechParser:
         parser = BusinessTechParser()
         df = parser.load(str(csv_file))
 
-        assert pd.api.types.is_datetime64_any_dtype(df["recorded_month"])
+        assert pd.api.types.is_datetime64_any_dtype(df["recorded_at"])
