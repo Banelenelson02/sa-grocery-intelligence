@@ -159,7 +159,7 @@ class TestBasketEndpoint:
 
     def test_no_matching_store_still_returns_200(self, client_with_mock_db):
         """A product with no price data anywhere shouldn't crash the endpoint --
-        it should degrade to an empty/zero result, per the sequence design."""
+        it should degrade to an empty/zero result, per the sequence design ."""
         client, mock_db = client_with_mock_db
         mock_db.execute.return_value.fetchall.return_value = []
 

@@ -63,12 +63,25 @@ class TestOpenPriceEngineClient:
     def test_handles_429_rate_limit(self):
         from etl.extract.open_price_engine import OpenPriceEngineClient
 
-        with patch("etl.extract.open_price_engine.requests.get") as mock_get:
+        with patch("etl.extract.open_price_engine.requests.get") as mock_get, \
+             patch("etl.extract.open_price_engine.time.sleep") as mock_sleep:
+
             mock_get.return_value.status_code = 429
 
             client = OpenPriceEngineClient(api_key="test-key")
-            with pytest.raises(Exception):
+
+            with pytest.raises(Exception, match="Rate limit exceeded"):
                 client.fetch_prices(product="bread")
+
+            # Three requests: the initial attempt and two retries.
+            assert mock_get.call_count == 3
+
+            # The two retry delays are simulated, not actually waited out.
+            assert mock_sleep.call_count == 2
+            assert all(
+                call.args == (60,)
+                for call in mock_sleep.call_args_list
+            )
 
     def test_empty_response_returns_empty_dataframe(self):
         from etl.extract.open_price_engine import OpenPriceEngineClient
