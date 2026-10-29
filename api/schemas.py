@@ -69,3 +69,4 @@ class BasketResponse(BaseModel):
     saving_zar: Optional[float] = None
     budget_zar: Optional[float] = None
     budget_status: str
+    recommended_option: Optional[str] = None
