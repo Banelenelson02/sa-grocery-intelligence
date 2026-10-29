@@ -191,7 +191,7 @@ From the repository root, run the Python test suite:
 python3 -m pytest -q
 ```
 
-The current local test run completed with **52 passed in 0.47 seconds**. Runtime will vary by environment. ETL and API tests mock external dependencies where appropriate; no real Open Price Engine request is needed for the normal test run.
+The current local test run completed with **53 passed in 0.49 seconds**. Runtime will vary by environment. ETL and API tests mock external dependencies where appropriate; no real Open Price Engine request is needed for the normal test run.
 
 Build the frontend for production:
 
@@ -248,14 +248,14 @@ sa-grocery-intelligence/
 - [x] FastAPI analytics endpoints
 - [x] React dashboard for trends, comparison, inflation and basket optimization
 - [x] Local Docker Compose setup for PostgreSQL and the API
-- [x] Automated test suite (52 tests passed in the latest local run)
+- [x] Automated test suite (53 tests passed in the latest local run)
 - [ ] Show the latest sample-data date clearly in the dashboard
 - [ ] Improve empty states for periods with no price records
 - [ ] Apply budget constraints to basket optimization
 - [ ] Add database-backed integration tests
 - [ ] Reduce the frontend JavaScript bundle size through code splitting
 - [ ] Complete detailed API, architecture and data-dictionary documentation
-- [ ] Configure and verify continuous integration
+- [x] Configure and verify GitHub Actions CI for backend tests
 - [ ] Deploy the dashboard and API publicly
 
 ## Data interpretation
