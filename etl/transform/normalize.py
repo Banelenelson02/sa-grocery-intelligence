@@ -39,5 +39,9 @@ def normalize_dataframe(df: pd.DataFrame) -> pd.DataFrame:
             return raw
 
     normalized["store_name"] = normalized["store_name"].apply(normalize_or_preserve)
-    normalized["recorded_at"] = pd.to_datetime(normalized["recorded_at"])
+    # Keep malformed dates as NaT so validation can reject only those rows.
+    # A single bad source value should not abort the entire ETL batch.
+    normalized["recorded_at"] = pd.to_datetime(
+        normalized["recorded_at"], errors="coerce"
+    )
     return normalized

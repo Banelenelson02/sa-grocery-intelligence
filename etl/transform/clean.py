@@ -39,6 +39,8 @@ def _check_row(row, seen: set) -> str | None:
         return "null price"
     if row["price_zar"] <= 0 or row["price_zar"] > 5000:
         return "impossible price"
+    if pd.isnull(row["recorded_at"]):
+        return "invalid or missing recorded date"
     if row["recorded_at"] > pd.Timestamp.today():
         return "future date"
     if row["store_name"] not in CANONICAL_STORES:
