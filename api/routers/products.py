@@ -9,7 +9,7 @@ from api.schemas import Product
 router = APIRouter()
 
 
-@router.get("", response_model=List[Product])
+@router.get("", response_model=List[Product], response_model_exclude_unset=True)
 def get_products(
     search: Optional[str] = Query(None, min_length=1, max_length=200),
     category: Optional[str] = Query(None, max_length=80),
@@ -55,5 +55,27 @@ def get_products(
     rows = db.execute(query, {
         "search": search.strip() if search else None,
         "category": category,
-    }).mappings().all()
-    return [Product(**dict(row)) for row in rows]
+    }).fetchall()
+
+    products = []
+    for row in rows:
+        values = {
+            "id": row.id,
+            "name": row.name,
+            "category": row.category,
+            "subcategory": row.subcategory,
+        }
+        # Keep the original API response compatible with older test fixtures
+        # and data rows while exposing the richer fields when they are present.
+        for field in (
+            "unit",
+            "lowest_price_zar",
+            "lowest_price_store",
+            "store_count",
+            "price_records",
+        ):
+            if hasattr(row, field):
+                values[field] = getattr(row, field)
+        products.append(Product(**values))
+
+    return products
