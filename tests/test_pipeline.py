@@ -58,6 +58,39 @@ class TestPipeline:
             result = run_pipeline()
 
             assert result["inserted"] == 0
+            assert result["status"] == "failed"
+            assert result["extraction_errors"]
+
+    def test_pipeline_uses_business_tech_when_ope_initialization_fails(self):
+        from etl.pipeline import run_pipeline
+
+        csv_df = pd.DataFrame([{
+            "store_name": "Pick n Pay",
+            "product_name": "Bread",
+            "price_zar": 23.99,
+            "recorded_at": pd.Timestamp("2026-07-01"),
+            "source": "businesstech"
+        }])
+
+        with patch("etl.pipeline.OpenPriceEngineClient", side_effect=ValueError("OPE_API_KEY not found")), \
+             patch("etl.pipeline.BusinessTechParser") as mock_parser, \
+             patch("etl.pipeline.os.path.exists", return_value=True), \
+             patch("etl.pipeline.normalize_dataframe", return_value=csv_df), \
+             patch("etl.pipeline.validate_prices", return_value=MagicMock(valid=csv_df, rejected=[])), \
+             patch("etl.pipeline.PostgresLoader") as mock_loader:
+
+            mock_parser.return_value.load.return_value = csv_df
+            mock_loader.return_value.load.return_value = {
+                "inserted": 1, "duplicates_skipped": 0, "failed": 0
+            }
+
+            result = run_pipeline()
+
+            mock_parser.return_value.load.assert_called_once()
+            mock_loader.return_value.load.assert_called_once()
+            assert result["inserted"] == 1
+            assert result["status"] == "completed_with_warnings"
+            assert any("OPE_API_KEY not found" in error for error in result["extraction_errors"])
 
     def test_pipeline_skips_load_when_all_rejected(self):
         from etl.pipeline import run_pipeline
