@@ -1,11 +1,11 @@
 import { useState } from 'react'
 import { useBasketOptimizer } from '../hooks/useBasketOptimizer'
-import { KNOWN_PRODUCTS } from '../data/knownProducts'
+import { useProducts } from '../hooks/useProducts'
 import LoadingSpinner from './LoadingSpinner'
 import ErrorMessage from './ErrorMessage'
 
 export default function BasketOptimizer() {
-  const [quantities, setQuantities] = useState({})
+  const [quantities, setQuantities] = useState({})\n  const { products, loading: productsLoading, error: productsError } = useProducts()
   const [budget, setBudget] = useState(500)
   const { result, loading, error, optimize } = useBasketOptimizer()
 
@@ -38,8 +38,8 @@ export default function BasketOptimizer() {
       </p>
 
       <form onSubmit={handleSubmit} className="mt-6 max-w-xl">
-        <ul className="divide-y divide-forest-50 rounded border border-forest-100 bg-white">
-          {KNOWN_PRODUCTS.map((p) => (
+        {productsLoading && <LoadingSpinner label="Loading products" />}\n        {productsError && <ErrorMessage message={productsError} />}\n        {!productsLoading && !productsError && <ul className="divide-y divide-forest-50 rounded border border-forest-100 bg-white">
+          {products.map((p) => (
             <li key={p.id} className="flex items-center justify-between px-4 py-3">
               <span className="text-sm text-ink">{p.name}</span>
               <input
@@ -68,7 +68,7 @@ export default function BasketOptimizer() {
           </label>
           <button
             type="submit"
-            disabled={selectedCount === 0 || loading}
+            disabled={selectedCount === 0 || loading || productsLoading || !!productsError}
             className="rounded bg-forest-900 px-5 py-2 text-sm font-medium text-sand hover:bg-forest-600 disabled:cursor-not-allowed disabled:opacity-40"
           >
             Optimize basket
