@@ -5,12 +5,20 @@ import LoadingSpinner from './LoadingSpinner'
 import ErrorMessage from './ErrorMessage'
 
 export default function StoreComparisonTable() {
-  const [category, setCategory] = useState('')\n  const { products, loading: productsLoading, error: productsError } = useProducts()\n  const categories = [...new Set(products.map((product) => product.category).filter(Boolean))]
+  const { products, loading: productsLoading, error: productsError } = useProducts()
+  const categories = [...new Set(products.map((product) => product.category).filter(Boolean))]
+  const [category, setCategory] = useState('')
   const [rankings, setRankings] = useState([])
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState(null)
 
   useEffect(() => {
+    if (!category && categories.length > 0) {
+      setCategory(categories[0])
+      return
+    }
+    if (!category) return
+
     let cancelled = false
     setLoading(true)
     setError(null)
@@ -29,7 +37,7 @@ export default function StoreComparisonTable() {
     return () => {
       cancelled = true
     }
-  }, [category, categories.join('|')])
+  }, [category, products])
 
   return (
     <section>
@@ -47,6 +55,7 @@ export default function StoreComparisonTable() {
           value={category}
           onChange={(e) => setCategory(e.target.value)}
           className="rounded border border-forest-100 bg-white px-3 py-2 text-sm"
+          disabled={productsLoading || categories.length === 0}
         >
           {categories.map((c) => (
             <option key={c} value={c}>
@@ -57,7 +66,8 @@ export default function StoreComparisonTable() {
       </label>
 
       <div className="mt-8">
-        {(productsLoading || loading) && <LoadingSpinner label="Loading store rankings" />}\n        {productsError && <ErrorMessage message={productsError} />}
+        {(productsLoading || loading) && <LoadingSpinner label="Loading store rankings" />}
+        {productsError && <ErrorMessage message={productsError} />}
         {error && <ErrorMessage message={error} />}
         {!productsLoading && !loading && !productsError && !error && rankings.length === 0 && (
           <p className="py-8 text-sm text-forest-600">
