@@ -22,8 +22,6 @@ const STORE_COLORS = {
 }
 
 function toChartRows(points) {
-  // API returns one row per (date, store). Recharts wants one row per date,
-  // with each store as its own key, so a line can be drawn per store.
   const byDate = new Map()
   for (const point of points) {
     const date = point.recorded_at.slice(0, 10)
@@ -34,10 +32,17 @@ function toChartRows(points) {
 }
 
 export default function PriceTrendChart() {
-  const [productId, setProductId] = useState(KNOWN_PRODUCTS[0].id)
+  const [productId, setProductId] = useState('')
   const [weeks, setWeeks] = useState(12)
-  const { data, loading, error } = usePriceTrends(productId, weeks)
+  const { products, loading: productsLoading, error: productsError } = useProducts()
 
+  useEffect(() => {
+    if (!productId && products.length > 0) {
+      setProductId(String(products[0].id))
+    }
+  }, [productId, products])
+
+  const { data, loading, error } = usePriceTrends(productId, weeks)
   const rows = useMemo(() => toChartRows(data), [data])
   const stores = useMemo(
     () => [...new Set(data.map((p) => p.store_name))],
@@ -59,8 +64,9 @@ export default function PriceTrendChart() {
           <span className="font-medium text-ink">Product</span>
           <select
             value={productId}
-            onChange={(e) => setProductId(Number(e.target.value))}
+            onChange={(e) => setProductId(e.target.value)}
             className="rounded border border-forest-100 bg-white px-3 py-2 text-sm"
+            disabled={productsLoading || products.length === 0}
           >
             {products.map((p) => (
               <option key={p.id} value={p.id}>
@@ -87,7 +93,8 @@ export default function PriceTrendChart() {
       </div>
 
       <div className="mt-8">
-        {(productsLoading || loading) && <LoadingSpinner label="Loading price history" />}\n        {productsError && <ErrorMessage message={productsError} />}
+        {(productsLoading || loading) && <LoadingSpinner label="Loading price history" />}
+        {productsError && <ErrorMessage message={productsError} />}
         {error && <ErrorMessage message={error} />}
         {!productsLoading && !loading && !productsError && !error && rows.length === 0 && (
           <p className="py-8 text-sm text-forest-600">
