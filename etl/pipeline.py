@@ -21,32 +21,52 @@ def run_pipeline() -> dict:
     print("Starting pipeline run...")
 
     # ── EXTRACT ──────────────────────────────────────────
-    ope_client = OpenPriceEngineClient()
     raw_frames = []
+    extraction_errors = []
 
-    for product in PRODUCTS_TO_FETCH:
-        try:
-            df = ope_client.fetch_prices(product=product)
-            raw_frames.append(df)
-            print(f"  Extracted {len(df)} rows for '{product}'")
-        except Exception as e:
-            print(f"  Warning: could not fetch '{product}': {e}")
+    # Treat each source as optional: a missing API key or unavailable service
+    # must not prevent the CSV source from being processed.
+    try:
+        ope_client = OpenPriceEngineClient()
+        for product in PRODUCTS_TO_FETCH:
+            try:
+                df = ope_client.fetch_prices(product=product)
+                if not df.empty:
+                    raw_frames.append(df)
+                print(f"  Extracted {len(df)} rows for '{product}'")
+            except Exception as e:
+                message = f"Open Price Engine ({product}): {e}"
+                extraction_errors.append(message)
+                print(f"  Warning: could not fetch '{product}': {e}")
+    except Exception as e:
+        message = f"Open Price Engine initialization: {e}"
+        extraction_errors.append(message)
+        print(f"  Warning: {message}")
 
     bt_parser = BusinessTechParser()
     if os.path.exists(BUSINESSTECH_CSV):
         try:
             bt_df = bt_parser.load(BUSINESSTECH_CSV)
-            raw_frames.append(bt_df)
+            if not bt_df.empty:
+                raw_frames.append(bt_df)
             print(f"  Extracted {len(bt_df)} rows from BusinessTech CSV")
         except Exception as e:
+            message = f"BusinessTech CSV: {e}"
+            extraction_errors.append(message)
             print(f"  Warning: could not load BusinessTech CSV: {e}")
     else:
         print(f"  Skipping BusinessTech CSV (not found at {BUSINESSTECH_CSV})")
 
     if not raw_frames:
         print("No data extracted. Exiting.")
-        return {"inserted": 0, "duplicates_skipped": 0,
-                "failed": 0, "rejected": 0}
+        return {
+            "status": "failed",
+            "inserted": 0,
+            "duplicates_skipped": 0,
+            "failed": 0,
+            "rejected": 0,
+            "extraction_errors": extraction_errors,
+        }
 
     raw_df = pd.concat(raw_frames, ignore_index=True)
     print(f"Total extracted: {len(raw_df)} rows")
@@ -76,6 +96,11 @@ def run_pipeline() -> dict:
     loader = PostgresLoader()
     summary = loader.load(report.valid)
     summary["rejected"] = len(report.rejected)
+    summary["extraction_errors"] = extraction_errors
+    summary["status"] = (
+        "completed_with_warnings" if extraction_errors or report.rejected or summary["failed"]
+        else "completed"
+    )
 
     print(f"Pipeline complete: {summary}")
     return summary
