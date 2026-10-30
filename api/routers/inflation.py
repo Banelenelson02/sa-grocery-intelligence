@@ -22,7 +22,7 @@ def get_inflation(
                 AVG(p.price_zar) AS avg_price_zar
             FROM prices p
             JOIN products pr ON pr.id = p.product_id
-            WHERE p.recorded_at >= NOW() - INTERVAL ':months months'
+            WHERE p.recorded_at >= NOW() - (:months * INTERVAL '1 month')
             AND pr.category IS NOT NULL
             AND (:store_name IS NULL OR p.store_name = :store_name)
             GROUP BY DATE_TRUNC('month', p.recorded_at), pr.category

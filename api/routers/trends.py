@@ -31,7 +31,7 @@ def get_price_trends(
             ) AS week_over_week_change
         FROM prices
         WHERE product_id = :product_id
-        AND recorded_at >= NOW() - INTERVAL ':weeks weeks'
+        AND recorded_at >= NOW() - (:weeks * INTERVAL '1 week')
         ORDER BY store_name, recorded_at
     """)
 
