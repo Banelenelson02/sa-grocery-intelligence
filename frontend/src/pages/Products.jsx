@@ -10,15 +10,30 @@ import ErrorMessage from '../components/ErrorMessage'
 
 const currency = new Intl.NumberFormat('en-ZA', { style: 'currency', currency: 'ZAR' })
 const categoryIcons = { Staples: ShoppingBasket, Dairy: Package, Meat: Tags, Produce: Leaf }
+const categoryImages = {
+  Staples: '/images/staples.jpg',
+  Dairy: '/images/dairy.jpg',
+  Meat: '/images/meat.jpg',
+  Produce: '/images/produce.jpg',
+}
 
 function ProductCard({ product }) {
   const Icon = categoryIcons[product.category] || Package
   return (
     <article className="group flex flex-col overflow-hidden rounded-2xl border border-[#E7E8DF] bg-white transition duration-300 hover:-translate-y-1 hover:border-[#CBDCD1] hover:shadow-xl hover:shadow-forest-900/5">
-      <div className="relative flex h-40 items-center justify-center bg-[#F3F5EF]">
-        <div className="flex h-20 w-20 items-center justify-center rounded-2xl bg-white text-forest-600 shadow-sm transition group-hover:scale-105">
-          <Icon size={34} strokeWidth={1.5} />
-        </div>
+      <div className="relative h-48 overflow-hidden bg-[#EAF0E9]">
+        {categoryImages[product.category] ? (
+          <img
+            src={categoryImages[product.category]}
+            alt={`${product.category} groceries`}
+            loading="lazy"
+            className="h-full w-full object-cover transition duration-500 group-hover:scale-105"
+          />
+        ) : (
+          <div className="flex h-full items-center justify-center bg-gradient-to-br from-[#E8EFE7] via-[#F5F5EF] to-[#DCE8DD] text-forest-700">
+            <Icon size={42} strokeWidth={1.4} />
+          </div>
+        )}
         <span className="absolute left-4 top-4 rounded-full bg-white/90 px-3 py-1 text-[10px] font-semibold uppercase tracking-wider text-forest-700">{product.category || 'Uncategorised'}</span>
         <span className="absolute right-4 top-4 text-xs font-medium text-gray-400">#{product.id}</span>
       </div>
@@ -85,7 +100,9 @@ export default function Products() {
 
   return (
     <div className="space-y-8">
-      <section className="relative overflow-hidden rounded-2xl bg-forest-900 px-7 py-9 text-white sm:px-10 sm:py-11">
+      <section className="relative isolate overflow-hidden rounded-2xl bg-forest-900 px-7 py-9 text-white sm:px-10 sm:py-11">
+        <img src="/images/grocery-hero.jpg" alt="" aria-hidden="true" className="absolute inset-0 -z-10 h-full w-full object-cover opacity-30" />
+        <div className="absolute inset-0 -z-10 bg-gradient-to-r from-[#173D2B] via-[#173D2B]/90 to-[#173D2B]/35" />
         <div className="relative z-10 max-w-2xl">
           <div className="mb-4 inline-flex items-center gap-2 rounded-full border border-white/15 bg-white/10 px-3 py-1.5 text-xs text-white/75"><Leaf size={14} />Product intelligence</div>
           <h1 className="font-display text-3xl font-bold tracking-tight sm:text-4xl">Know what your groceries cost.</h1>
