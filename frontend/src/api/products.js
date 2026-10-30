@@ -1,5 +1,5 @@
 import { get } from './client'
 
-export function fetchProducts() {
+export function getProducts() {
   return get('/products')
 }
