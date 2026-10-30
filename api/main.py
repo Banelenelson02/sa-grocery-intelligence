@@ -1,6 +1,6 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from api.routers import trends, compare, inflation, basket
+from api.routers import trends, compare, inflation, basket, products
 
 app = FastAPI(
     title="SA Grocery Price Intelligence API",
@@ -16,6 +16,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+app.include_router(products.router, prefix="/products", tags=["products"])
 app.include_router(trends.router, prefix="/trends", tags=["trends"])
 app.include_router(compare.router, prefix="/compare", tags=["compare"])
 app.include_router(inflation.router, prefix="/inflation", tags=["inflation"])

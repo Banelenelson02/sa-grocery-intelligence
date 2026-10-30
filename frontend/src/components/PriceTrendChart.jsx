@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useEffect } from 'react'
 import {
   LineChart,
   Line,
@@ -10,7 +10,7 @@ import {
   ResponsiveContainer,
 } from 'recharts'
 import { usePriceTrends } from '../hooks/usePriceTrends'
-import { KNOWN_PRODUCTS } from '../data/knownProducts'
+import { useProducts } from '../hooks/useProducts'
 import LoadingSpinner from './LoadingSpinner'
 import ErrorMessage from './ErrorMessage'
 
@@ -22,8 +22,6 @@ const STORE_COLORS = {
 }
 
 function toChartRows(points) {
-  // API returns one row per (date, store). Recharts wants one row per date,
-  // with each store as its own key, so a line can be drawn per store.
   const byDate = new Map()
   for (const point of points) {
     const date = point.recorded_at.slice(0, 10)
@@ -34,10 +32,17 @@ function toChartRows(points) {
 }
 
 export default function PriceTrendChart() {
-  const [productId, setProductId] = useState(KNOWN_PRODUCTS[0].id)
+  const [productId, setProductId] = useState('')
   const [weeks, setWeeks] = useState(12)
-  const { data, loading, error } = usePriceTrends(productId, weeks)
+  const { products, loading: productsLoading, error: productsError } = useProducts()
 
+  useEffect(() => {
+    if (!productId && products.length > 0) {
+      setProductId(String(products[0].id))
+    }
+  }, [productId, products])
+
+  const { data, loading, error } = usePriceTrends(productId, weeks)
   const rows = useMemo(() => toChartRows(data), [data])
   const stores = useMemo(
     () => [...new Set(data.map((p) => p.store_name))],
@@ -59,10 +64,11 @@ export default function PriceTrendChart() {
           <span className="font-medium text-ink">Product</span>
           <select
             value={productId}
-            onChange={(e) => setProductId(Number(e.target.value))}
+            onChange={(e) => setProductId(e.target.value)}
             className="rounded border border-forest-100 bg-white px-3 py-2 text-sm"
+            disabled={productsLoading || products.length === 0}
           >
-            {KNOWN_PRODUCTS.map((p) => (
+            {products.map((p) => (
               <option key={p.id} value={p.id}>
                 {p.name}
               </option>
@@ -87,14 +93,15 @@ export default function PriceTrendChart() {
       </div>
 
       <div className="mt-8">
-        {loading && <LoadingSpinner label="Loading price history" />}
+        {(productsLoading || loading) && <LoadingSpinner label="Loading price history" />}
+        {productsError && <ErrorMessage message={productsError} />}
         {error && <ErrorMessage message={error} />}
-        {!loading && !error && rows.length === 0 && (
+        {!productsLoading && !loading && !productsError && !error && rows.length === 0 && (
           <p className="py-8 text-sm text-forest-600">
             No price history for this product in the selected window.
           </p>
         )}
-        {!loading && !error && rows.length > 0 && (
+        {!productsLoading && !loading && !productsError && !error && rows.length > 0 && (
           <ResponsiveContainer width="100%" height={360}>
             <LineChart data={rows} margin={{ left: -10, right: 16 }}>
               <CartesianGrid strokeDasharray="3 3" stroke="#EAF1EC" />

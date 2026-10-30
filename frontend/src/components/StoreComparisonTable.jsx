@@ -1,16 +1,24 @@
 import { useState, useEffect } from 'react'
 import { fetchComparison } from '../api/compare'
-import { KNOWN_CATEGORIES } from '../data/knownProducts'
+import { useProducts } from '../hooks/useProducts'
 import LoadingSpinner from './LoadingSpinner'
 import ErrorMessage from './ErrorMessage'
 
 export default function StoreComparisonTable() {
-  const [category, setCategory] = useState(KNOWN_CATEGORIES[0])
+  const { products, loading: productsLoading, error: productsError } = useProducts()
+  const categories = [...new Set(products.map((product) => product.category).filter(Boolean))]
+  const [category, setCategory] = useState('')
   const [rankings, setRankings] = useState([])
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState(null)
 
   useEffect(() => {
+    if (!category && categories.length > 0) {
+      setCategory(categories[0])
+      return
+    }
+    if (!category) return
+
     let cancelled = false
     setLoading(true)
     setError(null)
@@ -29,7 +37,7 @@ export default function StoreComparisonTable() {
     return () => {
       cancelled = true
     }
-  }, [category])
+  }, [category, products])
 
   return (
     <section>
@@ -47,8 +55,9 @@ export default function StoreComparisonTable() {
           value={category}
           onChange={(e) => setCategory(e.target.value)}
           className="rounded border border-forest-100 bg-white px-3 py-2 text-sm"
+          disabled={productsLoading || categories.length === 0}
         >
-          {KNOWN_CATEGORIES.map((c) => (
+          {categories.map((c) => (
             <option key={c} value={c}>
               {c}
             </option>
@@ -57,14 +66,15 @@ export default function StoreComparisonTable() {
       </label>
 
       <div className="mt-8">
-        {loading && <LoadingSpinner label="Loading store rankings" />}
+        {(productsLoading || loading) && <LoadingSpinner label="Loading store rankings" />}
+        {productsError && <ErrorMessage message={productsError} />}
         {error && <ErrorMessage message={error} />}
-        {!loading && !error && rankings.length === 0 && (
+        {!productsLoading && !loading && !productsError && !error && rankings.length === 0 && (
           <p className="py-8 text-sm text-forest-600">
             No price data for this category yet.
           </p>
         )}
-        {!loading && !error && rankings.length > 0 && (
+        {!productsLoading && !loading && !productsError && !error && rankings.length > 0 && (
           <table className="w-full max-w-xl border-collapse text-sm">
             <thead>
               <tr className="border-b border-forest-100 text-left text-forest-600">
