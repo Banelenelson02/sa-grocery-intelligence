@@ -51,6 +51,9 @@ class TestTrendsEndpoint:
         body = response.json()
         assert len(body) == 1
         assert body[0]["store_name"] == "Pick n Pay"
+        statement, params = mock_db.execute.call_args.args
+        assert ":weeks * INTERVAL '1 week'" in str(statement)
+        assert params["weeks"] == 12
 
     def test_rejects_non_positive_product_id(self, client_with_mock_db):
         client, _ = client_with_mock_db
@@ -105,6 +108,9 @@ class TestInflationEndpoint:
         body = response.json()
         assert body[0]["category"] == "Dairy"
         assert body[0]["pct_change"] == 1.86
+        statement, params = mock_db.execute.call_args.args
+        assert ":months * INTERVAL '1 month'" in str(statement)
+        assert params["months"] == 6
 
     def test_rejects_months_out_of_range(self, client_with_mock_db):
         client, _ = client_with_mock_db
