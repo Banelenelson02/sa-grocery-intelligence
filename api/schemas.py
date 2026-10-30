@@ -6,8 +6,13 @@ from typing import Optional, List
 class Product(BaseModel):
     id: int
     name: str
+    unit: Optional[str] = None
     category: Optional[str] = None
     subcategory: Optional[str] = None
+    lowest_price_zar: Optional[float] = None
+    lowest_price_store: Optional[str] = None
+    store_count: int = 0
+    price_records: int = 0
 
 
 class PricePoint(BaseModel):
