@@ -3,6 +3,13 @@ from datetime import datetime
 from typing import Optional, List
 
 
+class Product(BaseModel):
+    id: int
+    name: str
+    category: Optional[str] = None
+    subcategory: Optional[str] = None
+
+
 class PricePoint(BaseModel):
     recorded_at: datetime
     store_name: str
