@@ -11,8 +11,8 @@ class Product(BaseModel):
     subcategory: Optional[str] = None
     lowest_price_zar: Optional[float] = None
     lowest_price_store: Optional[str] = None
-    store_count: int = 0
-    price_records: int = 0
+    store_count: Optional[int] = None
+    price_records: Optional[int] = None
 
 
 class PricePoint(BaseModel):
