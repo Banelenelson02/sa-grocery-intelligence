@@ -47,6 +47,14 @@ class BasketRequest(BaseModel):
             raise ValueError("items list cannot be empty")
         return v
 
+    @validator("items")
+    @classmethod
+    def product_ids_must_be_unique(cls, v):
+        product_ids = [item.product_id for item in v]
+        if len(product_ids) != len(set(product_ids)):
+            raise ValueError("each product_id may only appear once")
+        return v
+
     @validator("budget")
     @classmethod
     def budget_must_be_positive(cls, v):

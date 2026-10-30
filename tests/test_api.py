@@ -181,6 +181,18 @@ class TestBasketEndpoint:
         })
         assert response.status_code == 422
 
+    def test_rejects_duplicate_product_ids(self, client_with_mock_db):
+        client, _ = client_with_mock_db
+        response = client.post("/basket", json={
+            "items": [
+                {"product_id": 1, "qty": 1},
+                {"product_id": 1, "qty": 2}
+            ],
+            "budget": 100
+        })
+        assert response.status_code == 422
+        assert "each product_id may only appear once" in response.json()["detail"][0]["msg"]
+
     def test_no_matching_store_still_returns_200(self, client_with_mock_db):
         """A product with no price data anywhere shouldn't crash the endpoint --
         it should degrade to an empty/zero result, per the sequence design ."""
