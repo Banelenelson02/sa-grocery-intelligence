@@ -1,3 +1,4 @@
+from types import SimpleNamespace
 from unittest.mock import MagicMock
 
 from fastapi.testclient import TestClient
@@ -10,12 +11,12 @@ from etl.load.postgres_loader import PostgresLoader
 def test_products_endpoint_returns_database_catalogue():
     mock_db = MagicMock()
     mock_db.execute.return_value.fetchall.return_value = [
-        MagicMock(id=11, name="PnP UHT Full Cream Milk 1L",
-                  category="Dairy", subcategory="Milk"),
-        MagicMock(id=12, name="PnP Large Eggs 30 Pack",
-                  category="Protein", subcategory="Eggs"),
-        MagicMock(id=13, name="McCain Savoury Rice 400g",
-                  category="Staples", subcategory="Rice"),
+        SimpleNamespace(id=11, name="PnP UHT Full Cream Milk 1L",
+                        category="Dairy", subcategory="Milk"),
+        SimpleNamespace(id=12, name="PnP Large Eggs 30 Pack",
+                        category="Protein", subcategory="Eggs"),
+        SimpleNamespace(id=13, name="McCain Savoury Rice 400g",
+                        category="Staples", subcategory="Rice"),
     ]
     app.dependency_overrides[get_db] = lambda: mock_db
     try:
