@@ -25,7 +25,7 @@ The local sample database was checked on 29 October 2026 and contained:
 
 The four store names are Checkers, Pick n Pay, Shoprite, and Woolworths. These are **historical sample prices, not live supermarket prices**. As the latest date is 17 July 2026, short trends windows can legitimately return no records.
 
-The basket API accepts a positive `budget`, but the current optimizer does not use the budget to constrain the recommendation. Its split-basket total also excludes travel costs and the inconvenience of visiting multiple stores.
+The basket optimizer uses the submitted positive `budget` to classify the result as `within_budget`, `over_budget`, or `missing_prices`. It reports whether each option fits the budget and recommends an option when a complete option fits. If neither complete option fits, it asks the shopper to increase the budget or reduce quantities. Split-basket totals still exclude travel costs and the inconvenience of visiting multiple stores.
 
 ETL components exist in the repository, but the current Compose stack does not run an Airflow scheduler or refresh prices automatically.
 
@@ -130,7 +130,7 @@ Base URL: `http://localhost:8000`
 | `GET` | `/compare?category=Dairy` | Rank stores by average recorded price for a category |
 | `GET` | `/inflation?months=6` | Monthly category price changes |
 | `GET` | `/inflation?months=6&store_name=Pick%20n%20Pay` | Monthly category price changes filtered to a store |
-| `POST` | `/basket` | Compare one-store and split-basket totals |
+| `POST` | `/basket` | Compare one-store and split-basket totals against a budget |
 
 ### Trends example
 
@@ -177,11 +177,13 @@ curl -X POST "http://localhost:8000/basket" \
 
 The request requires a non-empty `items` array, positive product quantities, and a positive `budget`. The response contains:
 
-- `single_store`: `store_name`, `total_zar`, and the requested item quantities.
-- `split_stores`: `total_zar` and an item-level breakdown including `product_id`, `store_name`, `price_zar`, and `qty`.
-- `saving_zar`: the difference between the totals when a single store can cover all basket items.
+- `single_store`: the cheapest single store that covers all requested products, its total, requested quantities, and `within_budget` flag.
+- `split_stores`: the item-level cheapest-store breakdown, total, completeness flag, missing product IDs, and `within_budget` flag.
+- `saving_zar`: the difference between the single-store and split-store totals when both are comparable.
+- `budget_status`: `within_budget`, `over_budget`, or `missing_prices`.
+- `recommended_option`: the preferred complete option when one fits the budget; `null` when no recommendation can be made.
 
-The optimizer uses the latest recorded price for each product/store pair. For the full request/response schemas, open <http://localhost:8000/docs> while the API is running.
+The optimizer uses the latest recorded price for each product/store pair. If no recorded price exists for a selected product, the API reports missing price data instead of treating an incomplete basket as a complete recommendation. For the full request/response schemas, open <http://localhost:8000/docs> while the API is running.
 
 ## Run tests and build the frontend
 
@@ -248,10 +250,10 @@ sa-grocery-intelligence/
 - [x] FastAPI analytics endpoints
 - [x] React dashboard for trends, comparison, inflation and basket optimization
 - [x] Local Docker Compose setup for PostgreSQL and the API
-- [x] Automated test suite (53 tests passed in the latest local run)
+- [x] Automated backend and ETL test suite with GitHub Actions CI
 - [ ] Show the latest sample-data date clearly in the dashboard
 - [ ] Improve empty states for periods with no price records
-- [ ] Apply budget constraints to basket optimization
+- [x] Apply budget-aware basket recommendations and expose the result in the dashboard
 - [ ] Add database-backed integration tests
 - [ ] Reduce the frontend JavaScript bundle size through code splitting
 - [ ] Complete detailed API, architecture and data-dictionary documentation
