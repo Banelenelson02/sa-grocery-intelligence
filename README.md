@@ -183,17 +183,49 @@ Interactive API documentation:
 
 ### 4. Start the React dashboard
 
-Open a second terminal from the repository root:
+Open a second terminal from the repository root. On the first setup, install the dependencies once:
 
 ```bash
 cd frontend
 npm ci
+```
+
+Start the development server (on later runs, skip `npm ci`):
+
+```bash
 npm run dev -- --host 0.0.0.0
 ```
 
-Open <http://localhost:5173>.
+On a local computer, open <http://localhost:5173>. In GitHub Codespaces, open forwarded port **5173** using the **Ports** tab instead. Keep this terminal running.
 
-The frontend uses `http://localhost:8000` as its default API base URL. To change it for local development, create `frontend/.env` using `frontend/.env.example` as a reference and set `VITE_API_BASE_URL`.
+**Codespaces browser API connection:** The default frontend API address (`http://localhost:8000`) works when the browser and API run on the same local machine, but not when a browser opens a Codespaces-forwarded React page. In Codespaces, use a Vite proxy to forward `/api` requests to FastAPI inside the same Codespace.
+
+The demo Codespace was already configured this way. **Do not repeat the setup below if the dashboard is currently loading data correctly.** For a new Codespace, from the `frontend` directory, run:
+
+```bash
+printf 'VITE_API_BASE_URL=/api\n' > .env.local
+cat > vite.config.js <<'EOF'
+import { defineConfig } from 'vite'
+import react from '@vitejs/plugin-react'
+
+export default defineConfig({
+  plugins: [react()],
+  server: {
+    host: '0.0.0.0',
+    port: 5173,
+    proxy: {
+      '/api': {
+        target: 'http://localhost:8000',
+        changeOrigin: true,
+        rewrite: (path) => path.replace(/^\/api/, ''),
+      },
+    },
+  },
+})
+EOF
+```
+
+Restart `npm run dev -- --host 0.0.0.0` after changing the configuration. The `.env.local` and Vite proxy configuration are for the Codespaces demo; the main dashboard requires **no Open Price Engine API key** when using the included seeded data.
 
 ### 5. Stop the application
 
@@ -204,6 +236,88 @@ docker compose down
 ```
 
 This keeps the named database volume. Do not use `docker compose down -v` unless you intentionally want to delete the database volume and its data.
+
+## 🎥 YouTube demo and recording guide
+
+This guide follows the working GitHub Codespaces demonstration. **All recording commands below use the Codespaces Linux terminal**, not Windows PowerShell. Keep the existing dashboard proxy configuration in place. **Do not enter an API key, run the external ETL, reinstall Node.js, or delete Docker volumes for this demo.**
+
+### Before recording (do this off camera)
+
+From the project root (`/workspaces/sa-grocery-intelligence`), start the backend:
+
+```bash
+docker compose up -d --build
+docker compose ps
+curl -i http://localhost:8000/health
+```
+
+A healthy setup shows the database container as **healthy**, the API container as **Up**, and the health response as HTTP **200** with `{"status":"ok"}`. The health check alone does not test database access.
+
+In a **second terminal**, launch React. If `frontend/node_modules` is already present, **do not reinstall** it:
+
+```bash
+cd /workspaces/sa-grocery-intelligence/frontend
+npm run dev -- --host 0.0.0.0
+```
+
+Leave the React terminal running. In Codespaces, open port **5173** using the **Ports** tab. Open port **8000** in the browser and append `/docs` to view Swagger. Check the dashboard tabs (Trends, Compare, Inflation and Basket) **before** recording; if they show `Failed to fetch`, check the Vite proxy setup in Getting started, step 4.
+
+For the recorded tests, follow **Tests and frontend build** below **before** recording so that dependency installation or errors do not interrupt the video.
+
+### Recording sequence and narration (approximately 7–8 minutes)
+
+**1. Introduction (0:00–0:45).** On screen: project title and overview in this README.
+
+> Hi, I'm Banele Ntuli, and this is SA Grocery Price Intelligence, a full-stack data engineering and analytics project. I built it to help South African shoppers explore recorded grocery prices, compare retailers, and estimate shopping basket costs. It uses Python, PostgreSQL, FastAPI, React, and Docker. I'll start with the working dashboard, then show the engineering behind it.
+
+**2. React dashboard (0:45–2:00).** On screen: forwarded port **5173**. Show **Trends** (White Bread 700g, 52 weeks), **Compare** (Dairy), then **Inflation** (6 months). Wait for the data to load after each click.
+
+> The React dashboard provides three ways to explore the data. Price Trends shows historical prices by retailer. Store Comparison ranks retailers by average recorded price for a selected category. The category heatmap shows month-to-month changes in the data. These are project dataset calculations, not live checkout prices or official South African CPI figures.
+
+**3. Basket optimiser (2:00–3:20).** On screen: **Basket**. Choose your prepared products and quantities, set budget to **R500**, and click **Optimize basket**.
+
+> The basket optimiser compares buying all selected items from one retailer with splitting purchases across stores using the lowest recorded price for each item. In my verified example, Pick n Pay was R494.93 and the split basket was R465.78, a potential saving of R29.15. Both fitted the R500 budget. It does not include travel costs, so the cheaper total isn't always the most practical shopping trip.
+
+Use the **actual totals on screen** if they differ from this previously verified example.
+
+**4. Python ETL and Airflow code (3:20–4:20).** On screen: `etl/pipeline.py`, `etl/extract/open_price_engine.py`, `etl/transform/normalize.py`, `etl/load/postgres_loader.py`, then `dags/daily_prices_dag.py`.
+
+> The data engineering layer uses Python to extract, normalize, validate, and load price observations. The optional Open Price Engine integration supports additional historical data ingestion; the dashboard demonstration uses the included seeded dataset and requires no external API key. I also wrote an Airflow DAG defining scheduled ETL tasks, but I'm showing the workflow code rather than a running Airflow service.
+
+**5. PostgreSQL and FastAPI (4:20–5:25).** On screen: Codespaces terminal, then Swagger `/docs`. From the **project root**, run:
+
+```bash
+cd /workspaces/sa-grocery-intelligence
+docker compose exec -T db psql -U postgres -d sa_grocery -c "SELECT (SELECT COUNT(*) FROM products) AS products, (SELECT COUNT(*) FROM stores) AS stores, (SELECT COUNT(*) FROM prices) AS price_records;"
+```
+
+On the fresh seeded database previously checked, the result was **10 products, 4 stores, 480 price records**. Use whatever the terminal actually returns. In Swagger, expand **GET /trends**, select **Try it out**, enter `product_id=1` and `weeks=52`, then click **Execute**. Show the **Server response**, HTTP **200**, and a few JSON records.
+
+> PostgreSQL stores the product catalogue, retailers, and historical price records. The FastAPI backend queries this database and exposes endpoints used by React. Here, the trends endpoint returns dates, retailer names, prices, and percentage changes as JSON. The frontend turns these responses into charts.
+
+**6. Docker, tests and build (5:25–6:25).** On screen: Codespaces terminal, from the project root:
+
+```bash
+docker compose ps
+```
+
+If you **already verified** that Python dependencies and tests run in Codespaces, run:
+
+```bash
+python3 -m pytest -q
+```
+
+Do not run an untested installation live while filming. Alternatively, show a successful GitHub Actions run and mention that **65 tests passed on Windows on 12 November 2026**. The frontend production build was previously verified with `npm run build` inside `frontend`.
+
+> Docker Compose runs PostgreSQL and FastAPI as separate services. I've added automated checks for the API and data processing. My verified Windows run passed 65 Python tests, and the React production build also succeeded. GitHub Actions is configured to test the backend and build the frontend on code changes.
+
+**7. Conclusion (6:25–7:15).** On screen: return to the working dashboard, ideally the basket results.
+
+> This project brought together SQL database design, Python ETL, backend APIs, React visualizations, Docker, and testing. Next, I want to expand data coverage, improve scheduled ingestion, and explore forecasting. Thanks for watching. The source code and setup instructions are available in this repository.
+
+### After recording
+
+Review the saved video for readable code, clear sound, and accidentally exposed personal information or credentials. When finished with Codespaces, stop the Codespace to conserve usage. Closing a browser tab alone does not necessarily stop the cloud environment.
 
 ## 🔄 Optional external price ingestion
 
@@ -291,7 +405,16 @@ Run the backend and ETL test suite from the repository root:
 python3 -m pytest -q
 ```
 
-The latest local run recorded during development completed with **58 passed**. One pandas date-parsing warning was reported; it did not cause a test failure. Test counts and runtime may change as the project evolves.
+The verified Windows Python 3.12 run on **12 November 2026** completed with **65 passed, 1 warning** (pandas date parsing). This is a recorded test result, not a claim that a new Codespaces test run has passed. Test counts and runtime may change as the project evolves.
+
+For the Codespaces environment, first ensure the Python dependencies are installed before recording (the API container alone does **not** include the separate `httpx` test dependency):
+
+```bash
+python3 -m pip install -r requirements.txt httpx==0.27.0
+python3 -m pytest -q
+```
+
+Run these from the repository root **before** you start recording, and only show the test run in the video if it succeeds. The alternative is to display the successful GitHub Actions checks and describe the verified Windows result.
 
 Build the frontend:
 
