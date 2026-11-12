@@ -205,60 +205,13 @@ docker compose down
 
 This keeps the named database volume. Do not use `docker compose down -v` unless you intentionally want to delete the database volume and its data.
 
-## 🔑 Running the Open Price Engine ETL
+## 🔄 Optional external price ingestion
 
-The ETL pipeline can retrieve historical prices from Open Price Engine and load them into PostgreSQL.
+The application runs with the included PostgreSQL seed data, so **no API key is needed** to start Docker, use the dashboard, explore the API, or reproduce the demonstration.
 
-### 1. Create a local environment file
+The Python ETL implementation also supports importing additional historical observations from Open Price Engine. This is an optional integration, not a requirement for running the project. External ingestion requires separate access to that data provider; it is not enabled in the default demonstration setup.
 
-Create a root-level `.env` file:
-
-```env
-OPE_API_KEY=your_api_key_here
-OPE_STORE=Pick n Pay
-```
-
-Do not commit this file or paste your API key into source code. Keep it local. The repository's `.gitignore` should exclude `.env`.
-
-### 2. Run the pipeline
-
-Make sure the database is running:
-
-```bash
-docker compose up -d db
-```
-
-From the repository root, export the variables from `.env` and run the ETL container:
-
-```bash
-set -a
-source .env
-set +a
-
-docker compose run --rm -e OPE_API_KEY api python -m etl.pipeline
-```
-
-The current default product list is:
-
-- `PnP UHT Full Cream Milk 1L`
-- `PnP Large Eggs 30 Pack`
-- `McCain Savoury Rice 400g`
-
-The default date window is the most recent 30 days. The pipeline can be configured with:
-
-| Variable | Purpose |
-|---|---|
-| `OPE_API_KEY` | API key used to authenticate with Open Price Engine |
-| `OPE_STORE` | Store to query; defaults to `Pick n Pay` |
-| `OPE_PRODUCTS` | Comma-separated list of exact product names; defaults to the three products above |
-| `OPE_START_DATE` | Optional start date in `YYYY-MM-DD` format |
-| `OPE_END_DATE` | Optional end date in `YYYY-MM-DD` format |
-
-For example, to use a different product list, add an `OPE_PRODUCTS` value to your local `.env` file. Product names must match the names available to your API key.
-
-The pipeline handles authentication errors, plan restrictions, rate limits and request failures. It normalises and validates returned rows before loading them. Re-running the same date range should not create duplicate price records.
-
-See the [Open Price Engine API documentation](https://openpricengine.com/docs) for current endpoints, product discovery and plan access.
+The ingestion code is available in `etl/`, and the workflow definition is in `dags/`. The project normalises and validates incoming observations and avoids inserting duplicate price records.
 
 ## 🔌 API reference
 
