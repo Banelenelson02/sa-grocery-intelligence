@@ -155,6 +155,7 @@ cd sa-grocery-intelligence
 ```bash
 docker compose up -d --build
 docker compose ps
+docker compose exec -T db psql -U postgres -d sa_grocery -c "SELECT (SELECT COUNT(*) FROM products) AS products, (SELECT COUNT(*) FROM stores) AS stores, (SELECT COUNT(*) FROM prices) AS price_records;"
 ```
 
 Wait until the database reports `healthy` and the API is running.
@@ -165,6 +166,7 @@ On a fresh database volume, PostgreSQL runs the schema and seed scripts mounted 
 
 ```bash
 curl -i http://localhost:8000/health
+curl -s http://localhost:8000/products
 ```
 
 Expected response:
@@ -186,7 +188,7 @@ Open a second terminal from the repository root:
 ```bash
 cd frontend
 npm ci
-npm run dev
+npm run dev -- --host 0.0.0.0
 ```
 
 Open <http://localhost:5173>.
