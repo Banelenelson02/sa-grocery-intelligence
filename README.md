@@ -27,6 +27,11 @@
   </a>
 </p>
 
+
+<p align="center">
+  <a href="https://youtu.be/mEcLHEj8MN0">▶ Watch the full project demonstration on YouTube</a>
+</p>
+
 ---
 
 ## 🧭 Project overview
