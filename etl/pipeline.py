@@ -31,6 +31,7 @@ BUSINESSTECH_CSV = "data/raw/businesstech_basket_latest.csv"
 def run_pipeline() -> dict:
     print("Starting pipeline run...")
 
+    # ── EXTRACT ──────────────────────────────────────────
     raw_frames = []
     extraction_errors = []
 
