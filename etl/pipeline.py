@@ -30,63 +30,104 @@ BUSINESSTECH_CSV = "data/raw/businesstech_basket_latest.csv"
 
 def run_pipeline() -> dict:
     print("Starting pipeline run...")
-    ope_client = OpenPriceEngineClient()
-    raw_frames = []
 
-    for product in PRODUCTS_TO_FETCH:
-        try:
-            df = ope_client.fetch_prices(
-                product=product,
-                store=OPE_STORE,
-                start_date=OPE_START_DATE,
-                end_date=OPE_END_DATE,
-            )
-            raw_frames.append(df)
-            print(f"  Extracted {len(df)} rows for '{product}' from {OPE_STORE}")
-        except OPEAccessError as exc:
-            print(f"  Skipping restricted product '{product}': {exc}")
-        except Exception as exc:
-            print(f"  Warning: could not fetch '{product}': {exc}")
+    raw_frames = []
+    extraction_errors = []
+
+    # Treat each source as optional: a missing API key or unavailable service
+    # must not prevent the CSV source from being processed.
+    try:
+        ope_client = OpenPriceEngineClient()
+        for product in PRODUCTS_TO_FETCH:
+            try:
+                df = ope_client.fetch_prices(
+                    product=product,
+                    store=OPE_STORE,
+                    start_date=OPE_START_DATE,
+                    end_date=OPE_END_DATE,
+                )
+                if not df.empty:
+                    raw_frames.append(df)
+                print(f"  Extracted {len(df)} rows for '{product}' from {OPE_STORE}")
+            except OPEAccessError as exc:
+                extraction_errors.append(f"Open Price Engine ({product}): {exc}")
+                print(f"  Skipping restricted product '{product}': {exc}")
+            except Exception as e:
+                message = f"Open Price Engine ({product}): {e}"
+                extraction_errors.append(message)
+                print(f"  Warning: could not fetch '{product}': {e}")
+    except Exception as e:
+        message = f"Open Price Engine initialization: {e}"
+        extraction_errors.append(message)
+        print(f"  Warning: {message}")
 
     if os.path.exists(BUSINESSTECH_CSV):
         try:
             bt_df = BusinessTechParser().load(BUSINESSTECH_CSV)
-            raw_frames.append(bt_df)
+            if not bt_df.empty:
+                raw_frames.append(bt_df)
             print(f"  Extracted {len(bt_df)} rows from BusinessTech CSV")
-        except Exception as exc:
-            print(f"  Warning: could not load BusinessTech CSV: {exc}")
+        except Exception as e:
+            message = f"BusinessTech CSV: {e}"
+            extraction_errors.append(message)
+            print(f"  Warning: could not load BusinessTech CSV: {e}")
     else:
         print(f"  Skipping BusinessTech CSV (not found at {BUSINESSTECH_CSV})")
 
-    non_empty_frames = [frame for frame in raw_frames if not frame.empty]
-    if not non_empty_frames:
+    if not raw_frames:
         print("No data extracted. Exiting.")
-        return {"inserted": 0, "duplicates_skipped": 0, "failed": 0, "rejected": 0}
+        return {
+            "status": "failed",
+            "inserted": 0,
+            "duplicates_skipped": 0,
+            "failed": 0,
+            "rejected": 0,
+            "extraction_errors": extraction_errors,
+        }
 
-    raw_df = pd.concat(non_empty_frames, ignore_index=True)
+    raw_df = pd.concat(raw_frames, ignore_index=True)
     print(f"Total extracted: {len(raw_df)} rows")
 
     try:
         normalized_df = normalize_dataframe(raw_df)
         print(f"Normalized: {len(normalized_df)} rows")
-    except Exception as exc:
-        print(f"Normalization failed: {exc}")
-        return {"inserted": 0, "duplicates_skipped": 0,
-                "failed": len(raw_df), "rejected": 0}
+    except Exception as e:
+        print(f"Normalization failed: {e}")
+        return {
+            "status": "failed",
+            "inserted": 0,
+            "duplicates_skipped": 0,
+            "failed": len(raw_df),
+            "rejected": 0,
+            "extraction_errors": extraction_errors,
+        }
 
     report = validate_prices(normalized_df)
     print(f"Valid: {len(report.valid)} | Rejected: {len(report.rejected)}")
-    for rejected in report.rejected:
-        print(f"  Rejected — {rejected['reason']}: "
-              f"{rejected['row'].get('product_name', '?')}")
+
+    for r in report.rejected:
+        print(f"  Rejected — {r['reason']}: {r['row'].get('product_name', '?')}")
 
     if report.valid.empty:
         print("All rows rejected. Nothing to load.")
-        return {"inserted": 0, "duplicates_skipped": 0,
-                "failed": 0, "rejected": len(report.rejected)}
+        return {
+            "status": "failed",
+            "inserted": 0,
+            "duplicates_skipped": 0,
+            "failed": 0,
+            "rejected": len(report.rejected),
+            "extraction_errors": extraction_errors,
+        }
 
-    summary = PostgresLoader().load(report.valid)
+    loader = PostgresLoader()
+    summary = loader.load(report.valid)
     summary["rejected"] = len(report.rejected)
+    summary["extraction_errors"] = extraction_errors
+    summary["status"] = (
+        "completed_with_warnings" if extraction_errors or report.rejected or summary["failed"]
+        else "completed"
+    )
+
     print(f"Pipeline complete: {summary}")
     return summary
 
