@@ -41,10 +41,6 @@ def run_pipeline() -> dict:
         ope_client = OpenPriceEngineClient()
         for product in PRODUCTS_TO_FETCH:
             try:
-                df = ope_client.fetch_prices(product=product)
-                if not df.empty:
-                    raw_frames.append(df)
-                print(f"  Extracted {len(df)} rows for '{product}'")
                 df = ope_client.fetch_prices(
                     product=product,
                     store=OPE_STORE,
@@ -68,7 +64,6 @@ def run_pipeline() -> dict:
 
     if os.path.exists(BUSINESSTECH_CSV):
         try:
-            bt_df = bt_parser.load(BUSINESSTECH_CSV)
             bt_df = BusinessTechParser().load(BUSINESSTECH_CSV)
             if not bt_df.empty:
                 raw_frames.append(bt_df)
