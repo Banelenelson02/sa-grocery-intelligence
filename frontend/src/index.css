@@ -2,11 +2,18 @@
 @tailwind components;
 @tailwind utilities;
 
-body {
+:root {
+  font-family: 'Inter', sans-serif;
+  color: #20241F;
+  background: #F5F5F0;
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
 }
-
-:focus-visible {
-  outline: 2px solid theme('colors.marigold.500');
-  outline-offset: 2px;
-}
+html { min-width: 320px; scroll-behavior: smooth; }
+body { margin: 0; min-width: 320px; min-height: 100vh; }
+button, input, select { font: inherit; }
+button, a { -webkit-tap-highlight-color: transparent; }
+:focus-visible { outline: 2px solid #E8A33D; outline-offset: 3px; }
+::selection { background: #CBDCD1; color: #1B4332; }

@@ -73,17 +73,49 @@ class PostgresLoader:
             "failed": failed
         }
 
+    @staticmethod
+    def _classify_product(product_name: str) -> tuple[str | None, str | None]:
+        """Assign a conservative catalogue category from a product name."""
+        name = product_name.casefold()
+
+        if any(term in name for term in ("milk", "cheese", "yoghurt", "yogurt", "butter")):
+            return "Dairy", "Milk" if "milk" in name else "Other dairy"
+        if any(term in name for term in ("egg", "chicken", "beef", "pork", "fish", "mince")):
+            return "Protein", "Eggs" if "egg" in name else "Meat"
+        if any(term in name for term in ("rice", "bread", "maize meal", "flour", "pasta", "sugar", "oil")):
+            return "Staples", "Rice" if "rice" in name else "Other staples"
+        if any(term in name for term in ("tomato", "banana", "apple", "potato", "onion", "spinach")):
+            return "Produce", "Other produce"
+        return None, None
+
     def _get_or_create_product_id(self, conn, product_name: str) -> int:
         result = conn.execute(text("""
             SELECT id FROM products WHERE name = :name
         """), {"name": product_name})
         existing_id = result.scalar()
+        category, subcategory = self._classify_product(product_name)
 
         if existing_id is not None:
+            if category is not None:
+                conn.execute(text("""
+                    UPDATE products
+                    SET category = COALESCE(category, :category),
+                        subcategory = COALESCE(subcategory, :subcategory)
+                    WHERE id = :product_id
+                """), {
+                    "category": category,
+                    "subcategory": subcategory,
+                    "product_id": existing_id,
+                })
             return existing_id
 
         result = conn.execute(text("""
-            INSERT INTO products (name) VALUES (:name)
+            INSERT INTO products (name, category, subcategory)
+            VALUES (:name, :category, :subcategory)
             RETURNING id
-        """), {"name": product_name})
+        """), {
+            "name": product_name,
+            "category": category,
+            "subcategory": subcategory,
+        })
         return result.scalar()

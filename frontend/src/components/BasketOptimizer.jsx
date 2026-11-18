@@ -1,12 +1,13 @@
 import { useState } from 'react'
 import { useBasketOptimizer } from '../hooks/useBasketOptimizer'
-import { KNOWN_PRODUCTS } from '../data/knownProducts'
+import { useProducts } from '../hooks/useProducts'
 import LoadingSpinner from './LoadingSpinner'
 import ErrorMessage from './ErrorMessage'
 
 export default function BasketOptimizer() {
   const [quantities, setQuantities] = useState({})
   const [budget, setBudget] = useState(500)
+  const { products, loading: productsLoading, error: productsError } = useProducts()
   const { result, loading, error, optimize } = useBasketOptimizer()
 
   function setQty(productId, qty) {
@@ -16,7 +17,7 @@ export default function BasketOptimizer() {
   function handleSubmit(e) {
     e.preventDefault()
     const items = Object.entries(quantities)
-      .filter(([, qty]) => qty > 0)
+      .filter(([, qty]) => Number(qty) > 0)
       .map(([productId, qty]) => ({
         product_id: Number(productId),
         qty: Number(qty),
@@ -25,7 +26,7 @@ export default function BasketOptimizer() {
     optimize(items, Number(budget))
   }
 
-  const selectedCount = Object.values(quantities).filter((q) => q > 0).length
+  const selectedCount = Object.values(quantities).filter((q) => Number(q) > 0).length
 
   return (
     <section>
@@ -38,21 +39,25 @@ export default function BasketOptimizer() {
       </p>
 
       <form onSubmit={handleSubmit} className="mt-6 max-w-xl">
-        <ul className="divide-y divide-forest-50 rounded border border-forest-100 bg-white">
-          {KNOWN_PRODUCTS.map((p) => (
-            <li key={p.id} className="flex items-center justify-between px-4 py-3">
-              <span className="text-sm text-ink">{p.name}</span>
-              <input
-                type="number"
-                min="0"
-                value={quantities[p.id] || ''}
-                onChange={(e) => setQty(p.id, e.target.value)}
-                placeholder="0"
-                className="w-16 rounded border border-forest-100 px-2 py-1 text-right text-sm"
-              />
-            </li>
-          ))}
-        </ul>
+        {productsLoading && <LoadingSpinner label="Loading products" />}
+        {productsError && <ErrorMessage message={productsError} />}
+        {!productsLoading && !productsError && (
+          <ul className="divide-y divide-forest-50 rounded border border-forest-100 bg-white">
+            {products.map((p) => (
+              <li key={p.id} className="flex items-center justify-between px-4 py-3">
+                <span className="text-sm text-ink">{p.name}</span>
+                <input
+                  type="number"
+                  min="0"
+                  value={quantities[p.id] || ''}
+                  onChange={(e) => setQty(p.id, e.target.value)}
+                  placeholder="0"
+                  className="w-16 rounded border border-forest-100 px-2 py-1 text-right text-sm"
+                />
+              </li>
+            ))}
+          </ul>
+        )}
 
         <div className="mt-4 flex items-end gap-4">
           <label className="flex flex-col gap-1 text-sm">
@@ -68,7 +73,7 @@ export default function BasketOptimizer() {
           </label>
           <button
             type="submit"
-            disabled={selectedCount === 0 || loading}
+            disabled={selectedCount === 0 || loading || productsLoading || !!productsError}
             className="rounded bg-forest-900 px-5 py-2 text-sm font-medium text-sand hover:bg-forest-600 disabled:cursor-not-allowed disabled:opacity-40"
           >
             Optimize basket
